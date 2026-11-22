@@ -67,10 +67,11 @@ La tabla de planificación se exporta con estas columnas, en este orden: `Elemen
   - `DERIVADO` (montaje): horas de los elementos instalados ÷ horas totales.
   - Tope del 100 % por partida: lo que se entregue o instale de más se alerta como alcance.
 - **AC**: lo certificado en planillas, es decir, lo que se debe. Lo **pagado** y lo **pendiente de pago** se muestran aparte. Si AC > EV, se está certificando por delante de lo hecho.
-- **SPI(t)** por *earned schedule* (Lipke). Fin previsto = duración ÷ SPI(t). Con la obra terminada se muestra el fin real.
+- **SPI(t)** por *earned schedule*: el momento más temprano en que el plan alcanzaba lo ganado hoy (las semanas sin nada planificado no cuentan como avance). Fin previsto = duración ÷ SPI(t). Con la obra terminada se muestra el fin real. Si la obra sigue después del fin planificado, la semana de corte puede superar el nº de semanas (hasta 104).
 - **EAC** = BAC ÷ CPI; sin CPI medible, AC + (BAC − EV). **Exposición máxima** = EAC + extras sin decidir.
 - **Semáforo**: umbral 0,95 para el proyecto y 0,90 por actividad. Por debajo: ≥ 0,85 Vigilar, ≥ 0,70 Desviado, < 0,70 Crítico. Un EAC por encima de la oferta nunca sale en verde.
 - **Contingencia**: 0 % hasta que dirección confirme que existe y su importe.
+- **Comprobaciones al cargar** (avisos arriba del informe): códigos de partida o actividad repetidos, partidas sin actividad, estados de Revit no reconocidos, elementos instalados sin semana, % manual fuera de 0–100 %, números guardados como texto y pagos anteriores a su certificación.
 
 ## Supuestos del ejemplo que hay que confirmar en un proyecto real
 - Horas de montaje por tipo de elemento: pedirlas al instalador.

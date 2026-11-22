@@ -56,20 +56,27 @@ TCPI inalcanzable = IF ( [BAC] - [EV] > 0.01 && [AC] >= [BAC], "Inalcanzable" )
 % plan = DIVIDE ( [PV], [BAC] )
 % real = DIVIDE ( [EV], [BAC] )
 
--- Earned schedule (convención de Lipke, igual que Python): C = última semana con PV acumulado <= EV,
--- interpolando con la siguiente ------------------------------------------------
+-- Earned schedule: momento MÁS TEMPRANO en que el plan alcanzaba el EV de hoy (igual que la app).
+-- Las mesetas del plan no se acreditan: con EV = 0, ES = 0.
 ES =
 VAR ev = CALCULATE ( [EV], ALL ( dim_partida ), ALL ( dim_actividad ) )
+VAR n = MAX ( parametros[n_semanas] )
+VAR pvTotal = CALCULATE ( SUM ( fact_semanal[pv_semana] ), dim_semana[semana] <= n, ALL ( dim_semana ), ALL ( dim_partida ), ALL ( dim_actividad ) )
 VAR t =
     MAXX (
         FILTER ( ALL ( dim_semana ),
-            CALCULATE ( SUM ( fact_semanal[pv_semana] ), dim_semana[semana] <= EARLIER ( dim_semana[semana] ),
-                        ALL ( dim_semana ), ALL ( dim_partida ), ALL ( dim_actividad ) ) <= ev ),
+            dim_semana[semana] <= n
+                && CALCULATE ( SUM ( fact_semanal[pv_semana] ), dim_semana[semana] <= EARLIER ( dim_semana[semana] ),
+                               ALL ( dim_semana ), ALL ( dim_partida ), ALL ( dim_actividad ) ) < ev ),
         dim_semana[semana] )
 VAR t0 = COALESCE ( t, 0 )
 VAR pv0 = CALCULATE ( SUM ( fact_semanal[pv_semana] ), dim_semana[semana] <= t0, ALL ( dim_semana ), ALL ( dim_partida ), ALL ( dim_actividad ) )
 VAR pv1 = CALCULATE ( SUM ( fact_semanal[pv_semana] ), dim_semana[semana] <= t0 + 1, ALL ( dim_semana ), ALL ( dim_partida ), ALL ( dim_actividad ) )
-RETURN t0 + DIVIDE ( ev - pv0, pv1 - pv0 )
+RETURN
+    SWITCH ( TRUE (),
+        ev <= 0, 0,
+        ev >= pvTotal, n,
+        t0 + DIVIDE ( ev - pv0, pv1 - pv0 ) )
 
 -- Primera semana en que lo ganado alcanza el BAC (obra terminada); en blanco si no ha terminado
 Semana fin real =
@@ -99,7 +106,8 @@ RETURN IF ( NOT ISBLANK ( d ), MAX ( parametros[fecha_inicio] ) + ROUND ( 7 * d,
 Pagado =
 VAR c = [Semana corte]
 RETURN CALCULATE ( SUM ( fact_planillas[importe] ),
-    FILTER ( ALL ( fact_planillas ), NOT ISBLANK ( fact_planillas[semana_pago] ) && fact_planillas[semana_pago] <= c ) )
+    FILTER ( ALL ( fact_planillas ), fact_planillas[semana] <= c
+        && NOT ISBLANK ( fact_planillas[semana_pago] ) && fact_planillas[semana_pago] <= c ) )
 Pendiente de pago = [AC] - [Pagado]
 
 -- Fuera de oferta -----------------------------------------------------------

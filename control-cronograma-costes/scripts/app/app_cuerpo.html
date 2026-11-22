@@ -92,7 +92,7 @@ function render(D, modo) {
     <h1>Semana ${D.corte} de ${D.n_sem} · corte ${fecha(D.fecha_corte)}</h1>
   </div>
   <div class="toolbar">
-    ${enApp ? `<label>Semana de corte <input type="number" id="corte" min="1" max="${D.n_sem}" value="${D.corte}"></label>
+    ${enApp ? `<label>Semana de corte <input type="number" id="corte" min="1" max="104" value="${D.corte}"></label>
     <button class="theme" id="otro">Abrir otro proyecto</button>
     <button class="theme primario" id="exportar">Exportar informe</button>
     <button class="theme" id="powerbi">Datos Power BI</button>` : ''}
@@ -186,7 +186,7 @@ ${D.avisos && D.avisos.length ? `<div class="avisos"><b>Revisa el Excel (${D.avi
   // ---------------------------------------------------------------- curva S
   (function () {
     const host = $('#curva'), W = host.clientWidth || 700, H = 320, m = { l: 64, r: 92, t: 12, b: 34 };
-    const iw = W - m.l - m.r, ih = H - m.t - m.b, n = D.n_sem;
+    const iw = W - m.l - m.r, ih = H - m.t - m.b, n = D.horizonte || D.n_sem;
     const top = Math.max(D.BAC, ...D.curva.map(c => Math.max(c.ac || 0, c.pv))) || 1;
     const paso = pasoBonito(top / 6), maxY = Math.ceil(top / paso) * paso;
     const pasoX = Math.max(1, Math.ceil(n / 6));
@@ -238,7 +238,7 @@ ${D.avisos && D.avisos.length ? `<div class="avisos"><b>Revisa el Excel (${D.avi
 
   // ---------------------------------------------------------------- actividades con gantt
   (function () {
-    const n = D.n_sem, GW = 300, GH = 22;
+    const n = D.horizonte || D.n_sem, GW = 300, GH = 22;
     const gx = w => (w / n) * GW;
     const filas = D.actividades.map((a, i) => {
       const x0 = gx(a.si - 1), x1 = gx(a.sf), wReal = (x1 - x0) * Math.min(1, a.pct_real);
@@ -329,7 +329,7 @@ function exportarInforme() {
   let html = FUENTE.replace(/<script id="lib-xlsx">[\s\S]*?<\/script>/, '')
                    .replace(/<script id="motor">[\s\S]*?<\/script>/, '')
                    .replace('<script type="application/json" id="datos-informe"><\/script>',
-                            '<script type="application/json" id="datos-informe">' + json + '<\/script>');
+                            () => '<script type="application/json" id="datos-informe">' + json + '<\/script>'); // función: el JSON se inserta literal (sin $&, $1...)
   descargar(`Informe_${slug(D.proyecto)}_S${String(D.corte).padStart(2, '0')}.html`, html, 'text/html');
 }
 

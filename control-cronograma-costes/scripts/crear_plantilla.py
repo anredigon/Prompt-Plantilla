@@ -133,7 +133,7 @@ param = [
     ("Proyecto", E.PROYECTO if E else "NOMBRE DEL PROYECTO", None, "Aparece en el informe."),
     ("Fecha inicio (lunes semana 1)", E.FECHA_INICIO if E else date(2027, 1, 4), "dd/mm/yyyy", "Lunes de la semana 1."),
     ("Nº semanas del cronograma", E.N_SEMANAS if E else 24, "0", f"Máximo {MAX_SEM}."),
-    ("Semana de corte", E.SEMANA_CORTE if E else 1, "0", "Subir cada semana."),
+    ("Semana de corte", E.SEMANA_CORTE if E else 1, "0", "Subir cada semana. Puede superar el nº de semanas si la obra va fuera de plazo (máx. 104)."),
     ("Fecha de corte (domingo)", "=B4+7*B6-1", "dd/mm/yyyy", "Fórmula."),
     ("Contingencia (% s/ oferta)", E.CONTINGENCIA_PCT if E else 0, PCT, "0 % hasta que dirección confirme que existe."),
     ("Umbral alerta total (proyecto)", 0.95, RATIO, "SPI/CPI del proyecto por debajo: alerta."),
@@ -203,8 +203,8 @@ for i in range(2, UP + 1):
     put(wo, f"P{i}", f'=IF({blank},"",COUNTIFS(Revit_Export!$E:$E,A{i},Revit_Export!$I:$I,"Instalado",'
                      f'Revit_Export!$J:$J,"<="&{CORTE}))', f_link, "#,##0")
     put(wo, f"Q{i}", f'=IF({blank},"",IF(OR(H{i}="REVIT",H{i}="ALBARAN"),IF(N(J{i})=0,0,MIN(1,O{i}/J{i})),'
-                     f'IF(H{i}="MANUAL",IFERROR(INDEX(Avance_Manual!$C$2:${LASTSEM}${MAX_MAN + 1},'
-                     f'MATCH(A{i},Avance_Manual!$A$2:$A${MAX_MAN + 1},0),{CORTE}),0),'
+                     f'IF(H{i}="MANUAL",MIN(1,MAX(0,IFERROR(INDEX(Avance_Manual!$C$2:${LASTSEM}${MAX_MAN + 1},'
+                     f'MATCH(A{i},Avance_Manual!$A$2:$A${MAX_MAN + 1},0),{CORTE}),0))),'
                      f'IFERROR(SUM(Revit_Export!$L:$L)/SUM(Revit_Export!$K:$K),0))))', fmt=PCT)
     put(wo, f"R{i}", f'=IF({blank},"",F{i}*Q{i})', fmt=EUR)
     put(wo, f"S{i}", f'=IF({blank},"",SUMIFS(Planillas!$F:$F,Planillas!$C:$C,A{i},Planillas!$B:$B,"<="&{CORTE}))',
@@ -442,7 +442,8 @@ kpi = [
     ("Extras sin decidir", "=Extras!I3", EUR0, "No están en el BAC."),
     ("Contingencia disponible", "=Contingencia!G5", EUR0, ""),
     ("Exposición máxima (EAC + extras sin decidir)", "=B13+B18", EUR0, "Lo que el directorio debería tener presupuestado."),
-    ("Pagado a fecha de corte", f'=SUMIFS(Planillas!$F:$F,Planillas!$H:$H,"<="&{CORTE})', EUR0, "Planillas con semana de pago."),
+    ("Pagado a fecha de corte", f'=SUMIFS(Planillas!$F:$F,Planillas!$B:$B,"<="&{CORTE},Planillas!$H:$H,"<="&{CORTE})',
+     EUR0, "Planillas certificadas y pagadas hasta el corte."),
     ("Certificado pendiente de pago", "=B8-B21", EUR0, "Deuda con el instalador a fecha de corte."),
 ]
 for i, (a, f, fmt, nota) in enumerate(kpi, 5):

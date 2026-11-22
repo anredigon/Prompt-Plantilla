@@ -14,17 +14,28 @@ function calcular(wb, opciones) {
 
   const filasDe = h => XLSX.utils.sheet_to_json(wb.Sheets[h], { header: 1, raw: true, defval: null }).slice(1);
   const valor = (h, ref) => { const c = wb.Sheets[h][ref]; return c ? c.v : null; };
+  let numerosTexto = 0;
+  // Números guardados como texto (pegados de otro programa). Criterio explícito:
+  // "1.234,5" y "12,5" -> formato español; "1.234" o "1.234.567" -> miles; "12.5" -> punto decimal.
   const num = v => {
     if (typeof v === 'number' && isFinite(v)) return v;
-    if (typeof v === 'string' && v.trim() !== '') { const n = Number(v.trim().replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : null; }
-    return null;
+    if (typeof v !== 'string') return null;
+    let t = v.trim().replace(/\s|€|%$/g, '');
+    if (t === '' || !/^-?[\d.,]+$/.test(t)) return null;
+    if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+    const n = Number(t);
+    if (!isFinite(n)) return null;
+    numerosTexto++;
+    return v.trim().endsWith('%') ? n / 100 : n;
   };
   const txt = v => (v == null ? '' : String(v).trim());
   const r2 = x => Math.round(x * 100) / 100;
   const div = (a, b) => (b ? a / b : null);
   const MS_DIA = 864e5;
+  const sistema1904 = !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904);
   const serialAFecha = v => {
-    if (typeof v === 'number') return new Date(Math.round((v - 25569) * MS_DIA));
+    if (typeof v === 'number') return new Date(Math.round((v + (sistema1904 ? 1462 : 0) - 25569) * MS_DIA));
     if (v instanceof Date) return new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()));
     return null;
   };
@@ -38,7 +49,11 @@ function calcular(wb, opciones) {
   const n_sem = Math.round(num(valor('Parametros', 'B5')) || 0);
   if (n_sem < 1 || n_sem > 104) throw new Error('Parametros!B5 (nº de semanas) debe estar entre 1 y 104.');
   let corte = Math.round(num(opciones.corte != null ? opciones.corte : valor('Parametros', 'B6')) || 1);
-  corte = Math.min(Math.max(corte, 1), n_sem);
+  if (corte > 104) avisos.push(`Parametros: la semana de corte (${corte}) supera el máximo de 104; se usa 104.`);
+  corte = Math.min(Math.max(corte, 1), 104);
+  // Horizonte del informe: si la obra sigue abierta después del plan, se informa más allá de n_sem con PV plano
+  const horizonte = Math.max(n_sem, corte);
+  if (corte > n_sem) avisos.push(`La semana de corte (${corte}) es posterior al fin planificado (semana ${n_sem}): la obra va fuera de plazo.`);
   const cont_pct = num(valor('Parametros', 'B8')) || 0;
   const umbral = num(valor('Parametros', 'B9')) || 0.95;
   const umbral_act = num(valor('Parametros', 'B10')) || 0.9;
@@ -47,6 +62,7 @@ function calcular(wb, opciones) {
   const actividades = [];
   for (const r of filasDe('Cronograma')) {
     if (!txt(r[0])) continue;
+    if (actividades.some(a => a.id === txt(r[0]))) { avisos.push(`Cronograma: la actividad ${txt(r[0])} está repetida; se usa solo la primera.`); continue; }
     const si = num(r[2]), sf = num(r[3]);
     if (si == null || sf == null || sf < si) { avisos.push(`Cronograma: la actividad ${txt(r[0])} no tiene semanas de inicio/fin válidas; se ignora.`); continue; }
     actividades.push({ id: txt(r[0]), nombre: txt(r[1]), si: Math.round(si), sf: Math.round(sf), pred: txt(r[7]) });
@@ -58,6 +74,7 @@ function calcular(wb, opciones) {
   for (const r of filasDe('Oferta')) {
     const cod = txt(r[0]);
     if (!cod || num(r[4]) == null || !txt(r[6])) continue;
+    if (partidas.some(p => p.cod === cod)) { avisos.push(`Oferta: el código de partida ${cod} está repetido; se usa solo la primera fila. Corrige el código para que cuente.`); continue; }
     const a = actPorId[txt(r[6])];
     if (!a) { avisos.push(`Oferta: la partida ${cod} apunta a la actividad "${txt(r[6])}", que no está en el Cronograma; se ignora.`); continue; }
     const fuente = txt(r[7]).toUpperCase();
@@ -73,20 +90,33 @@ function calcular(wb, opciones) {
   const codigos = new Set(partidas.map(p => p.cod));
 
   const revit = [];
+  const estadosRaros = new Set();
+  let sinSemana = 0;
   for (const r of filasDe('Revit_Export')) {
     const cod = txt(r[4]);
     if (!cod) continue;
     const sem = num(r[9]);
-    revit.push({ cod, q: num(r[6]) || 0, estado: txt(r[8]), sem: sem == null ? null : Math.round(sem) });
+    const est = txt(r[8]).toLowerCase();  // igual que SUMIFS de Excel: sin distinguir mayúsculas
+    if (est && est !== 'instalado' && est !== 'pendiente') estadosRaros.add(txt(r[8]));
+    revit.push({ cod, q: num(r[6]) || 0, estado: est === 'instalado' ? 'Instalado' : 'Pendiente', sem: sem == null ? null : Math.round(sem) });
+    if (est === 'instalado' && sem == null) sinSemana++;
   }
+  if (estadosRaros.size) avisos.push(`Revit_Export: CC_ESTADO con valores no reconocidos (cuentan como Pendiente): ${[...estadosRaros].slice(0, 5).join(', ')}.`);
+  if (sinSemana) avisos.push(`Revit_Export: ${sinSemana} elementos "Instalado" sin CC_SEMANA_INSTALADO no suman avance.`);
   const huerfanos = new Set(revit.filter(e => !codigos.has(e.cod)).map(e => e.cod));
   if (huerfanos.size) avisos.push(`Revit_Export: hay elementos con CC_COD_PARTIDA que no existe en la Oferta: ${[...huerfanos].slice(0, 8).join(', ')}.`);
 
   const manual = {};
+  const fueraRango = new Set();
   for (const r of filasDe('Avance_Manual')) {
     if (!txt(r[0])) continue;
-    manual[txt(r[0])] = r.slice(2, 2 + n_sem).map(v => num(v));
+    manual[txt(r[0])] = r.slice(2, 2 + 104).map(v => {
+      const n = num(v);
+      if (n != null && (n < 0 || n > 1)) fueraRango.add(txt(r[0]));
+      return n == null ? null : Math.min(1, Math.max(0, n));
+    });
   }
+  if (fueraRango.size) avisos.push(`Avance_Manual: hay % fuera de 0–100 % en ${[...fueraRango].join(', ')}; se limitan a 0–100 %.`);
   const suministros = [];
   for (const r of filasDe('Suministros')) {
     if (num(r[0]) == null || !txt(r[1])) continue;
@@ -119,7 +149,7 @@ function calcular(wb, opciones) {
   }
 
   // ---------------------------------------------------------------- cálculo semanal
-  const SEMANAS = Array.from({ length: n_sem }, (_, i) => i + 1);
+  const SEMANAS = Array.from({ length: horizonte }, (_, i) => i + 1);
   const pvAcum = (p, w) => {
     if (p.perfil === 'ENTREGA') return w >= p.sem_ent ? p.bac : 0;
     const a = actPorId[p.act];
@@ -154,11 +184,18 @@ function calcular(wb, opciones) {
   const EAC = CPI ? BAC / CPI : AC + (BAC - EV);
   const curva = SEMANAS.map(w => ({ sem: w, pv: r2(tot('pv', w)), ev: w <= corte ? r2(tot('ev', w)) : null, ac: w <= corte ? r2(tot('ac', w)) : null }));
 
-  // Earned schedule (Lipke): C = última semana con PV acumulado <= EV; se interpola con la siguiente
-  const pvs = [0, ...curva.map(c => c.pv)];
-  let C = 0;
-  for (let t = 0; t < pvs.length; t++) if (pvs[t] <= EV + 1e-6) C = t;
-  const ES = C === pvs.length - 1 ? C : C + (EV - pvs[C]) / (pvs[C + 1] - pvs[C]);
+  // Earned schedule: el momento MÁS TEMPRANO en que el plan alcanzaba el valor ganado hoy.
+  // Así una meseta del plan (semanas sin nada planificado) nunca se acredita como avance:
+  // con EV = 0 el ES es 0. C = última semana con PV acumulado estrictamente menor que EV.
+  const pvs = [0, ...curva.slice(0, n_sem).map(c => c.pv)];
+  let ES;
+  if (EV <= 1e-6) ES = 0;
+  else if (EV >= pvs[pvs.length - 1] - 1e-6) ES = n_sem;
+  else {
+    let C = 0;
+    for (let t = 0; t < pvs.length; t++) if (pvs[t] < EV - 1e-6) C = t;
+    ES = C + (EV - pvs[C]) / (pvs[C + 1] - pvs[C]);
+  }
   let SPIt = PV > 0 ? div(ES, corte) : null;
   let dur_prev = SPIt ? n_sem / SPIt : null;
   const terminado = EV >= BAC - 0.01;
@@ -178,7 +215,10 @@ function calcular(wb, opciones) {
   const cont_cons = contingencia.filter(c => c.estado === 'Aprobado').reduce((s, c) => s + c.imp, 0);
   const cont_prop = contingencia.filter(c => c.estado === 'Propuesto').reduce((s, c) => s + c.imp, 0);
   const cont_disp = cont_ini - cont_cons - cont_prop;
-  const PAGADO = planillas.filter(x => codigos.has(x.cod) && x.sem_pago != null && x.sem_pago <= corte).reduce((s, x) => s + x.imp, 0);
+  const PAGADO = planillas.filter(x => codigos.has(x.cod) && x.sem <= corte && x.sem_pago != null && x.sem_pago <= corte).reduce((s, x) => s + x.imp, 0);
+  const pagoAntes = planillas.filter(x => x.sem_pago != null && x.sem_pago < x.sem);
+  if (pagoAntes.length) avisos.push(`Planillas: ${pagoAntes.length} líneas tienen semana de pago anterior a su semana de certificación (${[...new Set(pagoAntes.map(x => x.n))].slice(0, 5).join(', ')}).`);
+  if (numerosTexto) avisos.push(`Hay ${numerosTexto} números guardados como texto en el Excel; se han interpretado (coma = decimal). Revísalos o conviértelos a número.`);
 
   // ---------------------------------------------------------------- por actividad
   const ORDEN = { critical: 0, serious: 1, warning: 2, good: 3 };
@@ -238,7 +278,7 @@ function calcular(wb, opciones) {
   alertas.sort((a, b) => ORDEN[a.nivel] - ORDEN[b.nivel]);
 
   const D = {
-    proyecto, corte, n_sem, fecha_corte: iso(masDias(inicio, 7 * corte - 1)), inicio: iso(inicio),
+    proyecto, corte, n_sem, horizonte, fecha_corte: iso(masDias(inicio, 7 * corte - 1)), inicio: iso(inicio),
     fin_plan: iso(fin_plan), fin_prev: fin_prev ? iso(fin_prev) : null,
     BAC, PV, EV, AC, SPI, CPI, EAC, VAC: BAC - EAC, TCPI, tcpi_inalcanzable, terminado, ES, SPIt, retraso, dur_prev,
     ext_pend, cont_ini, cont_cons, cont_prop, cont_disp, curva, actividades: filasAct, alertas, extras, contingencia,
