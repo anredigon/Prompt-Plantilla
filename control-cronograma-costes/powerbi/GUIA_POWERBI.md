@@ -1,9 +1,13 @@
-# Power BI · montaje de la maqueta
+# Power BI · plantilla reutilizable
 
-Aquí no se puede generar un `.pbix` (Power BI Desktop solo corre en Windows). Lo que sí está listo: el modelo de datos en CSV, las medidas DAX y el tema de colores. Montarlo lleva entre 1 y 2 horas.
+No puedo generar el `.pbix` (Power BI Desktop solo funciona en Windows). Están listos el modelo de datos, las medidas DAX y el tema de colores. El montaje se hace **una sola vez**, entre 1 y 2 horas. Después lo guardas como plantilla (`.pbit`) y lo reutilizas en cada proyecto.
+
+## 0. De dónde salen los datos
+En la app (`App_Control_Proyecto.html`), con el proyecto cargado, pulsa **Datos Power BI**. Se descarga `PowerBI_<Proyecto>.xlsx`, con una hoja por tabla. Guárdalo en la carpeta del proyecto con ese mismo nombre y sobrescríbelo cada semana: así en Power BI solo tienes que pulsar **Actualizar**.
+Configura el navegador para que pregunte dónde guardar las descargas; si no, irá a la carpeta Descargas.
 
 ## 1. Cargar datos
-`Obtener datos → Texto/CSV` para cada archivo de esta carpeta. Al importar, en **Configuración regional del archivo** elige *Inglés (Estados Unidos)*: los decimales vienen con punto.
+`Obtener datos → Libro de Excel` → `PowerBI_<Proyecto>.xlsx` → marca las 8 hojas. Puedes probar con `ejemplo/PowerBI_Ejemplo.xlsx`.
 
 | Tabla | Grano | Clave |
 |---|---|---|
@@ -33,6 +37,10 @@ Copia las de [`MEDIDAS_DAX.md`](MEDIDAS_DAX.md) en una tabla vacía `_Medidas`.
 5. **Segmentación** por `dim_partida[capitulo]`.
 
 ## 6. Actualización semanal
-Actualiza el Excel y ejecuta `python scripts/generar_dashboard.py`, que regenera los CSV. Luego pulsa **Actualizar** en Power BI.
+Actualiza el Excel del proyecto, ábrelo en la app, pulsa **Datos Power BI**, sobrescribe `PowerBI_<Proyecto>.xlsx` y pulsa **Actualizar** en Power BI.
 
-Siguiente paso, cuando deje de ser maqueta: que Power Query lea directamente el Excel (o la exportación de Revit en SharePoint) y eliminar el paso intermedio del script.
+## 7. Reutilizar en otros proyectos
+`Archivo → Exportar → Plantilla de Power BI (.pbit)`. Para un proyecto nuevo, abre el `.pbit` y, en `Transformar datos → Configuración de origen de datos`, apunta al `PowerBI_<Proyecto>.xlsx` de ese proyecto.
+
+## Control de calidad
+La primera vez, compara las tarjetas de Power BI con el informe de la app o con la hoja `Resumen` del Excel. Tienen que cuadrar al euro (en el ejemplo: EAC 1.422.506 €, SPI 0,88, CPI 0,97). Si no cuadran, no lo presentes.
