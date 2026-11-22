@@ -36,7 +36,8 @@ inicio = as_date(P["B4"].value)
 n_sem = int(P["B5"].value)
 corte = int(P["B6"].value)
 cont_pct = float(P["B8"].value)
-umbral = float(P["B9"].value)
+umbral = float(P["B9"].value)          # umbral del proyecto (titulares)
+umbral_act = float(P["B10"].value)      # umbral por actividad (tabla y alertas)
 
 actividades = []
 for r in filas(wb["Cronograma"]):
@@ -48,8 +49,12 @@ for r in filas(wb["Oferta"]):
     # Cualquier partida con código, importe numérico y actividad (la fila TOTAL no tiene código)
     if not isinstance(r[4], (int, float)) or not r[6]:
         continue
+    a = act_by_id[r[6]]
+    perfil = (r[22] if len(r) > 22 and r[22] else "LINEAL")
+    # Semana de entrega prevista: número tecleado o, si es la fórmula por defecto, inicio de la actividad
+    sem_ent = int(r[23]) if len(r) > 23 and isinstance(r[23], (int, float)) else a["si"]
     partidas.append(dict(cod=r[0], cap=r[1], desc=r[2], cant=r[3], bac=float(r[4]), act=r[6],
-                         fuente=r[7], ud=r[8], cmed=float(r[9])))
+                         fuente=r[7], ud=r[8], cmed=float(r[9]), perfil=perfil, sem_ent=sem_ent))
 
 revit = []
 for r in filas(wb["Revit_Export"]):
@@ -62,10 +67,20 @@ for r in filas(wb["Avance_Manual"]):
         continue
     manual[r[0]] = [float(v) if isinstance(v, (int, float)) else None for v in r[2:2 + n_sem]]
 
+suministros = []
+for r in filas(wb["Suministros"]):
+    suministros.append(dict(sem=int(r[0]), cod=r[1], q=float(r[2]), alb=r[3] or ""))
+
+horas = {}
+for r in filas(wb["Horas_Montaje"]):
+    if isinstance(r[2], (int, float)):
+        horas[r[0]] = float(r[2])
+
 planillas = []
 for r in filas(wb["Planillas"]):
     planillas.append(dict(n=r[0], sem=int(r[1]), cod=r[2], q=float(r[3]), pu=float(r[4]),
-                          imp=round(float(r[3]) * float(r[4]), 2), obs=r[6] or ""))
+                          imp=round(float(r[3]) * float(r[4]), 2), obs=r[6] or "",
+                          sem_pago=int(r[7]) if len(r) > 7 and isinstance(r[7], (int, float)) else None))
 
 extras = []
 for r in filas(wb["Extras"]):
@@ -82,6 +97,8 @@ SEMANAS = list(range(1, n_sem + 1))
 
 
 def pv_acum(p, w):
+    if p["perfil"] == "ENTREGA":  # equipos: todo el importe en la semana de entrega prevista
+        return p["bac"] if w >= p["sem_ent"] else 0.0
     a = act_by_id[p["act"]]
     return p["bac"] * min(1.0, max(0.0, (w - a["si"] + 1) / (a["sf"] - a["si"] + 1)))
 
@@ -91,27 +108,35 @@ def cant_revit(p, w):
                and e["sem"] is not None and e["sem"] <= w)
 
 
-def pct_revit(p, w):
-    # Tope 100 %: instalar más unidades de las presupuestadas no gana más valor (es alcance a revisar)
-    return min(1.0, cant_revit(p, w) / p["cmed"])
+def cant_entregada(p, w):
+    return sum(x["q"] for x in suministros if x["cod"] == p["cod"] and x["sem"] <= w)
 
 
-def frac_elementos(cap, w):
-    cods = {p["cod"] for p in partidas if p["cap"] == cap and p["fuente"] == "REVIT"}
-    tot = sum(1 for e in revit if e["cod"] in cods)
-    hechos = sum(1 for e in revit if e["cod"] in cods and e["estado"] == "Instalado"
-                 and e["sem"] is not None and e["sem"] <= w)
-    return hechos / tot if tot else 0.0
+def cant_medida(p, w):
+    return cant_entregada(p, w) if p["fuente"] == "ALBARAN" else cant_revit(p, w)
+
+
+def pct_medido(p, w):
+    # Tope 100 %: entregar o instalar más unidades de las presupuestadas no gana más valor (alcance a revisar)
+    return min(1.0, cant_medida(p, w) / p["cmed"])
+
+
+def frac_horas(w):
+    """Montaje: horas de los elementos instalados / horas de todos los elementos (hoja Horas_Montaje)."""
+    tot = sum(horas.get(e["cod"], 0.0) * e["q"] for e in revit)
+    hechas = sum(horas.get(e["cod"], 0.0) * e["q"] for e in revit
+                 if e["estado"] == "Instalado" and e["sem"] is not None and e["sem"] <= w)
+    return hechas / tot if tot else 0.0
 
 
 def pct_avance(p, w):
-    if p["fuente"] == "REVIT":
-        return pct_revit(p, w)
+    if p["fuente"] in ("REVIT", "ALBARAN"):
+        return pct_medido(p, w)
     if p["fuente"] == "MANUAL":
         serie = manual.get(p["cod"], [])
         v = serie[w - 1] if w - 1 < len(serie) else None
         return v or 0.0
-    return frac_elementos(p["cap"], w)
+    return frac_horas(w)
 
 
 serie = {}  # (cod, w) -> dict
@@ -177,9 +202,10 @@ cont_disp = cont_ini - cont_cons - cont_prop
 ORDEN = {"critical": 0, "serious": 1, "warning": 2, "good": 3}
 
 
-def nivel(indice):
-    """Mismo umbral en tabla, alertas y titulares: >=umbral OK, >=0,85 vigilar, >=0,70 desviado, <0,70 crítico."""
-    if indice is None or indice >= umbral:
+def nivel(indice, u=None):
+    """Por actividad (umbral_act por defecto): >=umbral OK, >=0,85 vigilar, >=0,70 desviado, <0,70 crítico."""
+    u = umbral_act if u is None else u
+    if indice is None or indice >= u:
         return "good"
     return "warning" if indice >= 0.85 else ("serious" if indice >= 0.7 else "critical")
 
@@ -232,21 +258,27 @@ for p in partidas:
     if exceso > max(1000, 0.03 * p["bac"]):
         obs = sorted({x["obs"] for x in planillas if x["cod"] == p["cod"] and x["obs"]})
         alertas.append(dict(nivel="serious", tipo="Coste",
-                            texto=f"{p['desc']}: certificado {eur(exceso)} por encima de lo instalado. "
+                            texto=f"{p['desc']}: certificado {eur(exceso)} por encima de lo entregado/instalado. "
                                   + ("; ".join(obs) + "." if obs else "")))
 for p in partidas:
-    if p["fuente"] == "REVIT" and cant_revit(p, corte) > p["cmed"] + 1e-6:
+    if p["fuente"] in ("REVIT", "ALBARAN") and cant_medida(p, corte) > p["cmed"] + 1e-6:
+        verbo = "entregadas" if p["fuente"] == "ALBARAN" else "instaladas"
         alertas.append(dict(nivel="serious", tipo="Alcance",
-                            texto=f"{p['desc']}: instaladas {cant_revit(p, corte):,.2f} {p['ud']} frente a "
+                            texto=f"{p['desc']}: {verbo} {cant_medida(p, corte):,.2f} {p['ud']} frente a "
                                   f"{p['cmed']:,.2f} presupuestadas. El exceso no suma valor ganado: "
                                   f"revisar alcance o modelo.".replace(",", "X").replace(".", ",").replace("X", ".")))
 for c in contingencia:
     if c["estado"] == "Propuesto":
-        alertas.append(dict(nivel="warning", tipo="Contingencia",
-                            texto=f"Pendiente de aprobar contra contingencia: {c['concepto']} ({eur(c['imp'])})."))
+        sin_colchon = cont_ini <= 0
+        alertas.append(dict(nivel="serious" if sin_colchon else "warning", tipo="Contingencia",
+                            texto=f"Pendiente de aprobar: {c['concepto']} ({eur(c['imp'])})."
+                                  + (" No hay contingencia confirmada: si se aprueba, sube el coste final."
+                                     if sin_colchon else "")))
 alertas.sort(key=lambda x: ORDEN[x["nivel"]])
 
 
+
+PAGADO = sum(x["imp"] for x in planillas if x["sem_pago"] is not None and x["sem_pago"] <= corte)
 
 # ------------------------------------------------------------------ salida HTML
 datos = dict(
@@ -257,7 +289,8 @@ datos = dict(
     TCPI=TCPI, tcpi_inalcanzable=tcpi_inalcanzable, terminado=terminado, ES=ES, SPIt=SPIt, retraso=retraso_sem, dur_prev=dur_prev,
     ext_pend=ext_pend, cont_ini=cont_ini, cont_cons=cont_cons, cont_prop=cont_prop, cont_disp=cont_disp,
     curva=curva, actividades=filas_act, alertas=alertas, extras=extras, contingencia=contingencia,
-    umbral=umbral, generado=date.today().isoformat(),
+    umbral=umbral, umbral_act=umbral_act, PAGADO=PAGADO, pendiente_pago=AC - PAGADO,
+    generado=date.today().isoformat(),
 )
 plantilla = (Path(__file__).resolve().parent / "plantilla_dashboard.html").read_text(encoding="utf-8")
 js = json.dumps(datos, ensure_ascii=False, default=str).replace("</", "<\\/")  # evita cerrar <script>
@@ -278,9 +311,9 @@ def escribir(nombre, cab, rows):
 
 
 escribir("dim_partida.csv", ["cod_partida", "capitulo", "descripcion", "id_actividad", "fuente_avance",
-                             "ud_medicion", "cant_medicion", "bac"],
-         [[p["cod"], p["cap"], p["desc"], p["act"], p["fuente"], p["ud"], p["cmed"], round(p["bac"], 2)]
-          for p in partidas])
+                             "ud_medicion", "cant_medicion", "bac", "perfil_pv", "semana_entrega"],
+         [[p["cod"], p["cap"], p["desc"], p["act"], p["fuente"], p["ud"], p["cmed"], round(p["bac"], 2),
+           p["perfil"], p["sem_ent"] if p["perfil"] == "ENTREGA" else ""] for p in partidas])
 escribir("dim_actividad.csv", ["id_actividad", "actividad", "sem_inicio", "sem_fin", "fecha_inicio",
                                "fecha_fin", "predecesora"],
          [[a["id"], a["nombre"], a["si"], a["sf"], (inicio + timedelta(days=7 * (a["si"] - 1))).isoformat(),
@@ -305,16 +338,17 @@ for p in partidas:
 escribir("fact_semanal.csv", ["cod_partida", "semana", "pv_semana", "pv_acum", "ev_semana", "ev_acum",
                               "ac_semana", "ac_acum"], rows)
 escribir("fact_planillas.csv", ["n_planilla", "semana", "cod_partida", "cant_certificada", "precio_aplicado",
-                                "importe", "observacion"],
-         [[x["n"], x["sem"], x["cod"], x["q"], x["pu"], x["imp"], x["obs"]] for x in planillas])
+                                "importe", "observacion", "semana_pago"],
+         [[x["n"], x["sem"], x["cod"], x["q"], x["pu"], x["imp"], x["obs"], x["sem_pago"] or ""] for x in planillas])
 escribir("extras.csv", ["cod", "descripcion", "importe", "estado", "semana_limite", "motivo"],
          [[e["cod"], e["desc"], e["imp"], e["estado"], e["limite"], e["motivo"]] for e in extras])
 escribir("contingencia.csv", ["semana", "concepto", "importe", "estado"],
          [[c["sem"], c["concepto"], c["imp"], c["estado"]] for c in contingencia])
-escribir("parametros.csv", ["semana_corte", "n_semanas", "fecha_inicio", "contingencia_pct", "umbral"],
-         [[corte, n_sem, inicio.isoformat(), cont_pct, umbral]])
+escribir("parametros.csv", ["semana_corte", "n_semanas", "fecha_inicio", "contingencia_pct", "umbral",
+                             "umbral_actividad"],
+         [[corte, n_sem, inicio.isoformat(), cont_pct, umbral, umbral_act]])
 
 print(json.dumps(dict(BAC=round(BAC, 2), PV=round(PV, 2), EV=round(EV, 2), AC=round(AC, 2),
                       SPI=SPI and round(SPI, 4), CPI=CPI and round(CPI, 4), EAC=round(EAC, 2), ES=round(ES, 2),
                       retraso_sem=round(retraso_sem, 2), fin_prev=fin_prev and fin_prev.isoformat(),
-                      alertas=len(alertas)), ensure_ascii=False, indent=1))
+                      PAGADO=round(PAGADO, 2), alertas=len(alertas)), ensure_ascii=False, indent=1))

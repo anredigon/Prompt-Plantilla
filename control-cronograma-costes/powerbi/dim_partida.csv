@@ -1,29 +1,29 @@
-﻿cod_partida,capitulo,descripcion,id_actividad,fuente_avance,ud_medicion,cant_medicion,bac
-P01,Instalación frigorífica,MYCOM 200VLD - 270 CV,ACT-010,REVIT,ud,2.0,161194.95
-P02,Instalación frigorífica,MYCOM 160VLD - 180 CV,ACT-010,REVIT,ud,2.0,130970.9
-P03,Instalación frigorífica,Separador de partículas de baja,ACT-020,REVIT,ud,1.0,28931.41
-P04,Instalación frigorífica,Separador de partículas de alta,ACT-020,REVIT,ud,1.0,20712.98
-P05,Instalación frigorífica,Condensador evaporativo,ACT-030,REVIT,ud,1.0,61369.09
-P06,Instalación frigorífica,Recipiente de líquido,ACT-020,REVIT,ud,1.0,12973.42
-P07,Instalación frigorífica,Evaporador cámara 1,ACT-060,REVIT,ud,2.0,30291.99
-P08,Instalación frigorífica,Evaporador cámara 2,ACT-060,REVIT,ud,2.0,35374.67
-P09,Instalación frigorífica,Evaporador cámara 3,ACT-060,REVIT,ud,2.0,24383.19
-P10,Instalación frigorífica,"Evaporadores cámaras 4, 5 y 6",ACT-060,REVIT,ud,6.0,64837.95
-P11,Instalación frigorífica,Muelles tipo 1,ACT-070,REVIT,ud,17.0,35883.56
-P12,Instalación frigorífica,Muelles tipo 2,ACT-070,REVIT,ud,13.0,48900.6
-P13,Instalación frigorífica,Antecámara despojos,ACT-080,REVIT,ud,1.0,11189.45
-P14,Instalación frigorífica,Despojos,ACT-080,REVIT,ud,1.0,3297.71
-P15,Instalación frigorífica,"Amp frescos, MP & PT",ACT-080,REVIT,ud,6.0,28958.72
-P16,Instalación frigorífica,Cámara de frescos,ACT-080,REVIT,ud,2.0,18182.39
-P17,Instalación frigorífica,Central de bombeo de glycol 700 kW -4/-8 ºC,ACT-040,REVIT,ud,1.0,28328.7
-P18,Instalación frigorífica,Protecciones de instalación,ACT-130,MANUAL,%,1.0,8186.29
-P19,Instalación frigorífica,Desagües,ACT-090,REVIT,ud,52.0,9822.82
-P20,Instalación frigorífica,Soportes de evaporadores,ACT-090,REVIT,ud,52.0,11787.38
-P21,Instalación frigorífica,Cargas de aceite,ACT-140,MANUAL,l,600.0,4533.61
-P22,Instalación frigorífica,Carga de amoniaco,ACT-140,MANUAL,kg,8000.0,17126.96
-P23,Instalación frigorífica,Carga de propylen glycol,ACT-140,MANUAL,l,2500.0,7870.85
-P24,Instalación frigorífica,Tuberías,ACT-050,REVIT,m,1850.0,54663.16
-P25,Instalación frigorífica,Montaje de instalación de frío,ACT-100,DERIVADO,global,1.0,247117.45
-E01,Electricidad,Cuadro eléctrico de la instalación,ACT-120,REVIT,módulo,6.0,154799.44
-E02,Electricidad,Puesta en marcha,ACT-150,MANUAL,%,1.0,19502.29
-A01,Aislamientos,Aislamientos térmicos de tuberías,ACT-110,REVIT,m,1850.0,93808.07
+﻿cod_partida,capitulo,descripcion,id_actividad,fuente_avance,ud_medicion,cant_medicion,bac,perfil_pv,semana_entrega
+P01,Instalación frigorífica,MYCOM 200VLD - 270 CV,ACT-010,ALBARAN,ud,2.0,161194.95,ENTREGA,3
+P02,Instalación frigorífica,MYCOM 160VLD - 180 CV,ACT-010,ALBARAN,ud,2.0,130970.9,ENTREGA,3
+P03,Instalación frigorífica,Separador de partículas de baja,ACT-020,ALBARAN,ud,1.0,28931.41,ENTREGA,4
+P04,Instalación frigorífica,Separador de partículas de alta,ACT-020,ALBARAN,ud,1.0,20712.98,ENTREGA,4
+P05,Instalación frigorífica,Condensador evaporativo,ACT-030,ALBARAN,ud,1.0,61369.09,ENTREGA,5
+P06,Instalación frigorífica,Recipiente de líquido,ACT-020,ALBARAN,ud,1.0,12973.42,ENTREGA,4
+P07,Instalación frigorífica,Evaporador cámara 1,ACT-060,ALBARAN,ud,2.0,30291.99,ENTREGA,6
+P08,Instalación frigorífica,Evaporador cámara 2,ACT-060,ALBARAN,ud,2.0,35374.67,ENTREGA,6
+P09,Instalación frigorífica,Evaporador cámara 3,ACT-060,ALBARAN,ud,2.0,24383.19,ENTREGA,6
+P10,Instalación frigorífica,"Evaporadores cámaras 4, 5 y 6",ACT-060,ALBARAN,ud,6.0,64837.95,ENTREGA,6
+P11,Instalación frigorífica,Muelles tipo 1,ACT-070,ALBARAN,ud,17.0,35883.56,ENTREGA,8
+P12,Instalación frigorífica,Muelles tipo 2,ACT-070,ALBARAN,ud,13.0,48900.6,ENTREGA,8
+P13,Instalación frigorífica,Antecámara despojos,ACT-080,ALBARAN,ud,1.0,11189.45,ENTREGA,10
+P14,Instalación frigorífica,Despojos,ACT-080,ALBARAN,ud,1.0,3297.71,ENTREGA,10
+P15,Instalación frigorífica,"Amp frescos, MP & PT",ACT-080,ALBARAN,ud,6.0,28958.72,ENTREGA,10
+P16,Instalación frigorífica,Cámara de frescos,ACT-080,ALBARAN,ud,2.0,18182.39,ENTREGA,10
+P17,Instalación frigorífica,Central de bombeo de glycol 700 kW -4/-8 ºC,ACT-040,ALBARAN,ud,1.0,28328.7,ENTREGA,6
+P18,Instalación frigorífica,Protecciones de instalación,ACT-130,MANUAL,%,1.0,8186.29,LINEAL,
+P19,Instalación frigorífica,Desagües,ACT-090,REVIT,ud,52.0,9822.82,LINEAL,
+P20,Instalación frigorífica,Soportes de evaporadores,ACT-090,REVIT,ud,52.0,11787.38,LINEAL,
+P21,Instalación frigorífica,Cargas de aceite,ACT-140,MANUAL,l,600.0,4533.61,LINEAL,
+P22,Instalación frigorífica,Carga de amoniaco,ACT-140,MANUAL,kg,8000.0,17126.96,LINEAL,
+P23,Instalación frigorífica,Carga de propylen glycol,ACT-140,MANUAL,l,2500.0,7870.85,LINEAL,
+P24,Instalación frigorífica,Tuberías,ACT-050,REVIT,m,1850.0,54663.16,LINEAL,
+P25,Instalación frigorífica,Montaje de instalación de frío,ACT-100,DERIVADO,global,1.0,247117.45,LINEAL,
+E01,Electricidad,Cuadro eléctrico de la instalación,ACT-120,ALBARAN,módulo,6.0,154799.44,ENTREGA,12
+E02,Electricidad,Puesta en marcha,ACT-150,MANUAL,%,1.0,19502.29,LINEAL,
+A01,Aislamientos,Aislamientos térmicos de tuberías,ACT-110,REVIT,m,1850.0,93808.07,LINEAL,

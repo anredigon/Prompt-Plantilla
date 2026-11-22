@@ -154,9 +154,9 @@ app.innerHTML = `
     <div class="meter" title="Planificado"><i style="width:${D.PV / D.BAC * 100}%;background:var(--plan-bar)"></i><i style="width:${D.EV / D.BAC * 100}%;height:4px;top:2px;background:var(--ev)"></i></div></div>
   <div class="card kpi"><div class="lab">SPI (€) · SPI(t)</div><div class="val">${dec(D.SPI)} · ${dec(D.SPIt)}</div><div class="det">${badge(nivelPor(D.SPI, D.umbral))}</div></div>
   <div class="card kpi"><div class="lab">CPI</div><div class="val">${dec(D.CPI)}</div><div class="det">${badge(nivelPor(D.CPI, D.umbral))}</div></div>
-  <div class="card kpi"><div class="lab">Certificado − ganado</div><div class="val">${eur(D.AC - D.EV)}</div><div class="det">AC ${keur(D.AC)} · EV ${keur(D.EV)}</div></div>
+  <div class="card kpi"><div class="lab">Certificado − ganado</div><div class="val">${eur(D.AC - D.EV)}</div><div class="det">AC ${keur(D.AC)} · EV ${keur(D.EV)}<br>Pagado ${keur(D.PAGADO)} · pendiente ${keur(D.pendiente_pago)}</div></div>
   <div class="card kpi"><div class="lab">TCPI para cumplir oferta</div><div class="val">${D.tcpi_inalcanzable ? 'Inalcanzable' : dec(D.TCPI)}</div><div class="det">${D.tcpi_inalcanzable ? 'Ya se ha certificado toda la oferta y queda obra' : 'Eficiencia necesaria en lo que queda'}</div></div>
-  <div class="card kpi"><div class="lab">Contingencia disponible</div><div class="val">${eur(D.cont_disp)}</div><div class="det">de ${eur(D.cont_ini)} (${pct(D.cont_disp / D.cont_ini)})</div></div>
+  <div class="card kpi"><div class="lab">Contingencia disponible</div><div class="val">${D.cont_ini > 0 ? eur(D.cont_disp) : 'Sin confirmar'}</div><div class="det">${D.cont_ini > 0 ? 'de ' + eur(D.cont_ini) + ' (' + pct(D.cont_disp / D.cont_ini) + ')' : 'No hay colchón: todo cambio aprobado sube el coste final'}</div></div>
 </section>
 
 <section class="grid2">
@@ -197,18 +197,19 @@ app.innerHTML = `
   <div class="card">
     <h2>Contingencia</h2>
     <table><tbody>
-      <tr><td>Inicial (${pct(D.cont_ini / D.BAC, 1)} s/ oferta, supuesto a confirmar)</td><td class="n">${eur(D.cont_ini)}</td></tr>
+      <tr><td>Inicial (${pct(D.cont_ini / D.BAC, 1)} s/ oferta${D.cont_ini > 0 ? '' : ': pendiente de confirmar por dirección'})</td><td class="n">${eur(D.cont_ini)}</td></tr>
       <tr><td>Consumida (aprobado)</td><td class="n">${eur(D.cont_cons)}</td></tr>
       <tr><td>Comprometida (propuesto)</td><td class="n">${eur(D.cont_prop)}</td></tr>
       <tr><td><b>Disponible</b></td><td class="n"><b>${eur(D.cont_disp)}</b></td></tr>
     </tbody></table>
-    <p class="muted">La contingencia no cubre los extras: ${eur(D.ext_pend)} pendientes frente a ${eur(D.cont_disp)} disponibles.</p>
+    <p class="muted">${D.cont_ini > 0 ? `La contingencia no cubre los extras: ${eur(D.ext_pend)} pendientes frente a ${eur(D.cont_disp)} disponibles.` : `Sin contingencia confirmada, los ${eur(D.ext_pend)} de extras y cualquier cambio aprobado van directos al coste final.`}</p>
   </div>
 </section>
 
 <footer>
-  Valor ganado: unidades instaladas en el modelo Revit (parámetro CC_ESTADO) × precio unitario de oferta; partidas fuera del modelo, % manual; montaje, proporcional a elementos montados.
-  Coste real: importes certificados en planillas. SPI(t) por «earned schedule»: semana en que lo ganado hoy debía estar ganado (${dec(D.ES, 1)}) ÷ semana de corte.
+  Planificado: equipos al 100 % en su semana de entrega prevista; resto, lineal en la duración de su actividad.
+  Valor ganado: equipos por albarán de entrega; resto de partidas del modelo, por unidades instaladas en Revit (CC_ESTADO); partidas fuera del modelo, % manual; montaje, por horas de los elementos instalados.
+  Coste real: importes certificados en planillas (lo pagado se muestra aparte). Umbral de alerta: ${dec(D.umbral)} proyecto · ${dec(D.umbral_act)} actividades. SPI(t) por «earned schedule»: semana en que lo ganado hoy debía estar ganado (${dec(D.ES, 1)}) ÷ semana de corte.
   EAC = BAC / CPI. Generado ${fecha(D.generado)}.
 </footer>`;
 

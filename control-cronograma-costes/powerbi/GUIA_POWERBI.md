@@ -26,9 +26,9 @@ Copia las de [`MEDIDAS_DAX.md`](MEDIDAS_DAX.md) en una tabla vacía `_Medidas`.
 `Vista → Temas → Buscar temas → tema_powerbi.json`. Usa la misma paleta que el HTML, validada para daltonismo. Asigna los colores a mano en la curva S: PV en azul (#2a78d6), AC en naranja (#eb6834) y EV en verde agua (#1baf7a).
 
 ## 5. Página única para el directorio (misma estructura que el HTML)
-1. **Tarjetas**: Fin previsto · EAC · Exposición máxima. Debajo: SPI, CPI, Certificado − Ganado, TCPI y Contingencia disponible.
+1. **Tarjetas**: Fin previsto · EAC · Exposición máxima. Debajo: SPI, CPI, Certificado − Ganado (con Pagado y Pendiente de pago), TCPI y Contingencia disponible.
 2. **Gráfico de líneas** con eje `dim_semana[semana]` y valores `[PV acum]`, `[EV acum]` y `[AC acum]`. Añade una línea constante con `[BAC]`.
-3. **Matriz** con filas `dim_actividad[actividad]` y columnas `[% plan]`, `[% real]`, `[SPI]`, `[CPI]`, `[EV − AC]`. Aplica formato condicional de iconos a la columna SPI usando `[Nivel SPI]`.
+3. **Matriz** con filas `dim_actividad[actividad]` y columnas `[% plan]`, `[% real]`, `[SPI]`, `[CPI]`, `[EV − AC]`. Aplica formato condicional de iconos a la columna SPI usando `[Nivel SPI]` (umbral 0,90). Para las tarjetas del proyecto usa `[Nivel SPI proyecto]` (umbral 0,95).
 4. **Tabla** `extras` filtrada a `estado = "Sin decidir"`.
 5. **Segmentación** por `dim_partida[capitulo]`.
 

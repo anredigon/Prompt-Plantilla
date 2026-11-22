@@ -23,7 +23,8 @@ SALIDA = Path(sys.argv[1]) if len(sys.argv) > 1 else (
 N_SEMANAS = 24
 SEMANA_CORTE = 11
 FECHA_INICIO = date(2026, 9, 7)  # lunes de la semana 1
-CONTINGENCIA_PCT = 0.05
+CONTINGENCIA_PCT = 0.0   # sin contingencia confirmada: no se muestra un colchón que puede no existir
+SEMANAS_PAGO = 6         # supuesto: la propiedad paga ~6 semanas después de certificar
 
 # ---------------------------------------------------------------- estilos
 F = "Arial"
@@ -48,23 +49,23 @@ RATIO = '0.00'
 # (cod, capitulo, descripcion, cant_oferta, importe_pdf, actividad, fuente, ud_med, cant_med)
 FRIO, ELEC, AIS = "Instalación frigorífica", "Electricidad", "Aislamientos"
 PARTIDAS = [
-    ("P01", FRIO, "MYCOM 200VLD - 270 CV", 2, 161194.95, "ACT-010", "REVIT", "ud", 2),
-    ("P02", FRIO, "MYCOM 160VLD - 180 CV", 2, 130970.90, "ACT-010", "REVIT", "ud", 2),
-    ("P03", FRIO, "Separador de partículas de baja", 1, 28931.41, "ACT-020", "REVIT", "ud", 1),
-    ("P04", FRIO, "Separador de partículas de alta", 1, 20712.98, "ACT-020", "REVIT", "ud", 1),
-    ("P05", FRIO, "Condensador evaporativo", 1, 61369.09, "ACT-030", "REVIT", "ud", 1),
-    ("P06", FRIO, "Recipiente de líquido", 1, 12973.42, "ACT-020", "REVIT", "ud", 1),
-    ("P07", FRIO, "Evaporador cámara 1", 2, 30291.99, "ACT-060", "REVIT", "ud", 2),
-    ("P08", FRIO, "Evaporador cámara 2", 2, 35374.67, "ACT-060", "REVIT", "ud", 2),
-    ("P09", FRIO, "Evaporador cámara 3", 2, 24383.19, "ACT-060", "REVIT", "ud", 2),
-    ("P10", FRIO, "Evaporadores cámaras 4, 5 y 6", 6, 64837.95, "ACT-060", "REVIT", "ud", 6),
-    ("P11", FRIO, "Muelles tipo 1", 17, 35883.56, "ACT-070", "REVIT", "ud", 17),
-    ("P12", FRIO, "Muelles tipo 2", 13, 48900.60, "ACT-070", "REVIT", "ud", 13),
-    ("P13", FRIO, "Antecámara despojos", 1, 11189.45, "ACT-080", "REVIT", "ud", 1),
-    ("P14", FRIO, "Despojos", 1, 3297.71, "ACT-080", "REVIT", "ud", 1),
-    ("P15", FRIO, "Amp frescos, MP & PT", 6, 28958.72, "ACT-080", "REVIT", "ud", 6),
-    ("P16", FRIO, "Cámara de frescos", 2, 18182.39, "ACT-080", "REVIT", "ud", 2),
-    ("P17", FRIO, "Central de bombeo de glycol 700 kW -4/-8 ºC", 1, 28328.70, "ACT-040", "REVIT", "ud", 1),
+    ("P01", FRIO, "MYCOM 200VLD - 270 CV", 2, 161194.95, "ACT-010", "ALBARAN", "ud", 2),
+    ("P02", FRIO, "MYCOM 160VLD - 180 CV", 2, 130970.90, "ACT-010", "ALBARAN", "ud", 2),
+    ("P03", FRIO, "Separador de partículas de baja", 1, 28931.41, "ACT-020", "ALBARAN", "ud", 1),
+    ("P04", FRIO, "Separador de partículas de alta", 1, 20712.98, "ACT-020", "ALBARAN", "ud", 1),
+    ("P05", FRIO, "Condensador evaporativo", 1, 61369.09, "ACT-030", "ALBARAN", "ud", 1),
+    ("P06", FRIO, "Recipiente de líquido", 1, 12973.42, "ACT-020", "ALBARAN", "ud", 1),
+    ("P07", FRIO, "Evaporador cámara 1", 2, 30291.99, "ACT-060", "ALBARAN", "ud", 2),
+    ("P08", FRIO, "Evaporador cámara 2", 2, 35374.67, "ACT-060", "ALBARAN", "ud", 2),
+    ("P09", FRIO, "Evaporador cámara 3", 2, 24383.19, "ACT-060", "ALBARAN", "ud", 2),
+    ("P10", FRIO, "Evaporadores cámaras 4, 5 y 6", 6, 64837.95, "ACT-060", "ALBARAN", "ud", 6),
+    ("P11", FRIO, "Muelles tipo 1", 17, 35883.56, "ACT-070", "ALBARAN", "ud", 17),
+    ("P12", FRIO, "Muelles tipo 2", 13, 48900.60, "ACT-070", "ALBARAN", "ud", 13),
+    ("P13", FRIO, "Antecámara despojos", 1, 11189.45, "ACT-080", "ALBARAN", "ud", 1),
+    ("P14", FRIO, "Despojos", 1, 3297.71, "ACT-080", "ALBARAN", "ud", 1),
+    ("P15", FRIO, "Amp frescos, MP & PT", 6, 28958.72, "ACT-080", "ALBARAN", "ud", 6),
+    ("P16", FRIO, "Cámara de frescos", 2, 18182.39, "ACT-080", "ALBARAN", "ud", 2),
+    ("P17", FRIO, "Central de bombeo de glycol 700 kW -4/-8 ºC", 1, 28328.70, "ACT-040", "ALBARAN", "ud", 1),
     ("P18", FRIO, "Protecciones de instalación", 1, 8186.29, "ACT-130", "MANUAL", "%", 1),
     ("P19", FRIO, "Desagües", 52, 9822.82, "ACT-090", "REVIT", "ud", 52),
     ("P20", FRIO, "Soportes de evaporadores", 52, 11787.38, "ACT-090", "REVIT", "ud", 52),
@@ -73,7 +74,7 @@ PARTIDAS = [
     ("P23", FRIO, "Carga de propylen glycol", 2500, 7870.85, "ACT-140", "MANUAL", "l", 2500),
     ("P24", FRIO, "Tuberías", 1, 54663.16, "ACT-050", "REVIT", "m", 1850),
     ("P25", FRIO, "Montaje de instalación de frío", 1, 247117.45, "ACT-100", "DERIVADO", "global", 1),
-    ("E01", ELEC, "Cuadro eléctrico de la instalación", 1, 154799.44, "ACT-120", "REVIT", "módulo", 6),
+    ("E01", ELEC, "Cuadro eléctrico de la instalación", 1, 154799.44, "ACT-120", "ALBARAN", "módulo", 6),
     ("E02", ELEC, "Puesta en marcha", 1, 19502.29, "ACT-150", "MANUAL", "%", 1),
     ("A01", AIS, "Aislamientos térmicos de tuberías", 1, 93808.07, "ACT-110", "REVIT", "m", 1850),
 ]
@@ -119,6 +120,18 @@ INSTALADO = {
     "E01": {},
 }
 N_TRAMOS = 60
+
+# Suministros reales ficticios (albaranes): semana -> unidades entregadas
+SUMINISTRO = {
+    "P01": {4: 2}, "P02": {5: 2}, "P03": {5: 1}, "P04": {5: 1}, "P05": {8: 1}, "P06": {6: 1},
+    "P07": {6: 2}, "P08": {6: 2}, "P09": {7: 2}, "P10": {7: 6}, "P11": {8: 17}, "P12": {10: 13},
+    "P14": {10: 1}, "P16": {10: 2},
+}
+# Horas de montaje por unidad (por m en tuberías). SUPUESTO: pedir al instalador su estimación real.
+HORAS = {"P01": 120, "P02": 100, "P03": 40, "P04": 40, "P05": 80, "P06": 24, "P17": 80,
+         "P07": 24, "P08": 24, "P09": 24, "P10": 24, "P11": 16, "P12": 16,
+         "P13": 16, "P14": 16, "P15": 16, "P16": 16, "P19": 3, "P20": 2, "P24": 1.2}
+EN_MODELO = ("REVIT", "ALBARAN")
 
 
 def longitudes_tramos():
@@ -177,16 +190,21 @@ filas = [
     ("Relleno amarillo", "Supuesto clave a confirmar (p. ej. % de contingencia, semana de corte)."),
     ("", ""),
     ("Flujo semanal", "1) Exportar de Revit la tabla de planificación con los parámetros CC_* y pegarla en 'Revit_Export'."),
-    ("", "2) Actualizar 'Avance_Manual' (partidas que no están en el modelo: cargas, protecciones, puesta en marcha)."),
-    ("", "3) Registrar la planilla/certificación de la semana en 'Planillas'."),
+    ("", "2) Registrar los albaranes de entrega de equipos de la semana en 'Suministros'."),
+    ("", "3) Actualizar 'Avance_Manual' (cargas, protecciones, puesta en marcha) y registrar la planilla en 'Planillas' "
+         "(con la semana de pago cuando se pague)."),
     ("", "4) Cambiar la semana de corte en 'Parametros'. 'Oferta' y 'Resumen' se recalculan solos."),
     ("", "5) Ejecutar scripts/generar_dashboard.py → HTML del directorio + CSV para Power BI."),
     ("", ""),
-    ("Fuente de avance", "REVIT = unidades instaladas contadas en el modelo · MANUAL = % semanal en 'Avance_Manual' · "
-                         "DERIVADO = Montaje, avanza en proporción al nº de elementos del modelo de frío ya montados (no por €: los equipos caros inflarían el avance)."),
-    ("Valor ganado (EV)", "Unidades instaladas y verificadas × precio unitario de oferta. NO es lo que certifica el instalador."),
-    ("Coste real (AC)", "Lo certificado en planillas. Si AC > EV se está pagando por delante de lo instalado (acopios, "
-                        "sobremediciones, precios contradictorios)."),
+    ("Fuente de avance", "ALBARAN = suministro de equipos, ganado al entregarse (hoja 'Suministros') · REVIT = unidades "
+                         "instaladas en el modelo · MANUAL = % semanal en 'Avance_Manual' · DERIVADO = Montaje, avanza por "
+                         "horas de montaje de los elementos ya instalados en el modelo (hoja 'Horas_Montaje')."),
+    ("Perfil del planificado", "ENTREGA = el 100 % del importe se planifica en la semana de entrega prevista · LINEAL = "
+                               "repartido por igual en la duración de la actividad."),
+    ("Valor ganado (EV)", "Unidades entregadas o instaladas × precio unitario de oferta. NO es lo que certifica el instalador."),
+    ("Coste real (AC)", "Lo certificado en planillas (lo que se debe). Lo pagado se controla aparte (columna SEMANA PAGO). "
+                        "Si AC > EV se certifica por delante de lo hecho (acopios sin albarán, sobremediciones, precios "
+                        "contradictorios)."),
     ("Ejemplo de fila", "Revit_Export fila 2: un compresor con CC_COD_PARTIDA=P01, CC_ESTADO=Instalado, CC_SEMANA_INSTALADO=5."),
 ]
 for i, (a, b) in enumerate(filas, 3):
@@ -208,8 +226,9 @@ param = [
     ("Nº semanas del cronograma", N_SEMANAS, "0", "Supuesto de la maqueta."),
     ("Semana de corte", SEMANA_CORTE, "0", "Cambiar cada semana."),
     ("Fecha de corte (domingo)", "=B4+7*B6-1", "dd/mm/yyyy", "Fórmula."),
-    ("Contingencia (% s/ oferta)", CONTINGENCIA_PCT, PCT, "SUPUESTO: no consta en la oferta. Confirmar con dirección."),
-    ("Umbral alerta SPI / CPI", 0.95, RATIO, "Por debajo de este valor la actividad se marca en rojo."),
+    ("Contingencia (% s/ oferta)", CONTINGENCIA_PCT, PCT, "0 % hasta que dirección confirme que existe y su importe."),
+    ("Umbral alerta total (proyecto)", 0.95, RATIO, "SPI/CPI del proyecto por debajo de este valor: alerta."),
+    ("Umbral alerta por actividad", 0.90, RATIO, "SPI/CPI de una actividad por debajo de este valor: se marca en rojo."),
 ]
 for i, (a, b, fmt, nota) in enumerate(param, 3):
     put(wp, f"A{i}", a, f_bold)
@@ -242,16 +261,17 @@ for i, (aid, nom, si, sf, pred) in enumerate(ACTIVIDADES, 2):
     put(wc, f"N{i}", f'=IF(L{i}=0,"-",K{i}/L{i})', fmt=RATIO)
 nA = len(ACTIVIDADES) + 1
 wc.conditional_formatting.add(
-    f"M2:N{nA}", FormulaRule(formula=["AND(ISNUMBER(M2),M2<Parametros!$B$9)"],
+    f"M2:N{nA}", FormulaRule(formula=["AND(ISNUMBER(M2),M2<Parametros!$B$10)"],
                              fill=PatternFill("solid", fgColor="F4CCCC"), font=Font(name=F, color="9C0006")))
 
 # ---- Oferta (partidas)
 wo = wb.create_sheet("Oferta", 1)
 cabecera(wo, 1, ["COD_PARTIDA", "CAPÍTULO", "DESCRIPCIÓN", "CANT. OFERTA", "IMPORTE OFERTA €",
                  "BAC €", "ID_ACTIVIDAD", "FUENTE AVANCE", "UD MEDICIÓN", "CANT. MEDICIÓN",
-                 "PU MEDICIÓN €", "SEM_INICIO", "SEM_FIN", "PV a corte €", "CANT. INSTALADA",
-                 "ELEM. INSTALADOS", "% AVANCE", "EV a corte €", "AC a corte €", "CV €", "SV €", "ELEM. MODELO"],
-         [11, 22, 40, 11, 16, 16, 12, 12, 10, 12, 13, 9, 9, 15, 12, 12, 9, 15, 15, 14, 14, 12])
+                 "PU MEDICIÓN €", "SEM_INICIO", "SEM_FIN", "PV a corte €", "CANT. ENTREGADA / INSTALADA",
+                 "ELEM. INSTALADOS", "% AVANCE", "EV a corte €", "AC a corte €", "CV €", "SV €", "ELEM. MODELO",
+                 "PERFIL PV", "SEM. ENTREGA PREVISTA"],
+         [11, 22, 40, 11, 16, 16, 12, 12, 10, 12, 13, 9, 9, 15, 14, 12, 9, 15, 15, 14, 14, 12, 11, 12])
 n = len(PARTIDAS)
 UP = n + 1
 for i, (cod, cap, des, cant, imp, act, fuente, udm, cm) in enumerate(PARTIDAS, 2):
@@ -268,22 +288,30 @@ for i, (cod, cap, des, cant, imp, act, fuente, udm, cm) in enumerate(PARTIDAS, 2
     put(wo, f"K{i}", f"=F{i}/J{i}", fmt=EUR)
     put(wo, f"L{i}", f"=INDEX(Cronograma!$C$2:$C${nA},MATCH(G{i},Cronograma!$A$2:$A${nA},0))", f_link, "0")
     put(wo, f"M{i}", f"=INDEX(Cronograma!$D$2:$D${nA},MATCH(G{i},Cronograma!$A$2:$A${nA},0))", f_link, "0")
-    put(wo, f"N{i}", f"=F{i}*MIN(1,MAX(0,({CORTE}-L{i}+1)/(M{i}-L{i}+1)))", fmt=EUR)
+    perfil = "ENTREGA" if fuente == "ALBARAN" else "LINEAL"
+    put(wo, f"W{i}", perfil, f_input)
+    put(wo, f"X{i}", f"=L{i}" if perfil == "ENTREGA" else None, f_link, "0")
+    put(wo, f"N{i}", f'=IF(W{i}="ENTREGA",IF({CORTE}>=X{i},F{i},0),'
+                     f'F{i}*MIN(1,MAX(0,({CORTE}-L{i}+1)/(M{i}-L{i}+1))))', fmt=EUR)
     put(wo, f"O{i}", f'=IF(H{i}="REVIT",SUMIFS(Revit_Export!$G:$G,Revit_Export!$E:$E,A{i},'
-                     f'Revit_Export!$I:$I,"Instalado",Revit_Export!$J:$J,"<="&{CORTE}),0)', f_link, "#,##0.00")
+                     f'Revit_Export!$I:$I,"Instalado",Revit_Export!$J:$J,"<="&{CORTE}),'
+                     f'IF(H{i}="ALBARAN",SUMIFS(Suministros!$C:$C,Suministros!$B:$B,A{i},'
+                     f'Suministros!$A:$A,"<="&{CORTE}),0))', f_link, "#,##0.00")
     put(wo, f"P{i}", f'=COUNTIFS(Revit_Export!$E:$E,A{i},Revit_Export!$I:$I,"Instalado",'
                      f'Revit_Export!$J:$J,"<="&{CORTE})', f_link, "#,##0")
     put(wo, f"V{i}", f'=COUNTIFS(Revit_Export!$E:$E,A{i})', f_link, "#,##0")
     # % avance con tope 100 %: el exceso de unidades no gana valor (se revisa como alcance)
     put(wo, f"Q{i}",
-        f'=IF(H{i}="REVIT",MIN(1,O{i}/J{i}),IF(H{i}="MANUAL",'
+        f'=IF(OR(H{i}="REVIT",H{i}="ALBARAN"),MIN(1,O{i}/J{i}),IF(H{i}="MANUAL",'
         f'IFERROR(INDEX(Avance_Manual!$C$2:$Z$20,MATCH(A{i},Avance_Manual!$A$2:$A$20,0),{CORTE}),0),'
-        f'SUMIFS($P$2:$P${UP},$B$2:$B${UP},B{i},$H$2:$H${UP},"REVIT")/'
-        f'SUMIFS($V$2:$V${UP},$B$2:$B${UP},B{i},$H$2:$H${UP},"REVIT")))', fmt=PCT)
+        f'IFERROR(SUM(Revit_Export!$L:$L)/SUM(Revit_Export!$K:$K),0)))', fmt=PCT)
     put(wo, f"R{i}", f"=F{i}*Q{i}", fmt=EUR)
     put(wo, f"S{i}", f'=SUMIFS(Planillas!$F:$F,Planillas!$C:$C,A{i},Planillas!$B:$B,"<="&{CORTE})', f_link, EUR)
     put(wo, f"T{i}", f"=R{i}-S{i}", fmt=EUR)
     put(wo, f"U{i}", f"=R{i}-N{i}", fmt=EUR)
+    if perfil == "ENTREGA":
+        wo[f"X{i}"].comment = Comment("Por defecto = semana de inicio de la actividad. Sustituir por la fecha de "
+                                      "entrega pactada con el proveedor.", "Maqueta")
     if cod in ("P24", "A01", "E01"):
         wo[f"J{i}"].comment = Comment("Oferta en 1 ud global. Cantidad de medición = la que da el modelo Revit "
                                       "(supuesto maqueta). PU medición = importe / cantidad.", "Maqueta")
@@ -292,23 +320,27 @@ tot = UP + 1
 put(wo, f"C{tot}", "TOTAL OFERTA", f_bold)
 for col in "EFNRSTU":
     c = put(wo, f"{col}{tot}", f"=SUM({col}2:{col}{UP})", f_bold, EUR)
-for col in range(1, 23):
+for col in range(1, 25):
     wo.cell(row=tot, column=col).fill = fill_total
 put(wo, f"C{tot+1}", "Control: total oferta PDF")
 put(wo, f"E{tot+1}", 1375000, f_input, EUR)
 put(wo, f"F{tot+1}", f'=IF(ABS(E{tot}-E{tot+1})<0.01,"OK","REVISAR")', f_bold)
-dv = DataValidation(type="list", formula1='"REVIT,MANUAL,DERIVADO"', allow_blank=False)
+dv = DataValidation(type="list", formula1='"ALBARAN,REVIT,MANUAL,DERIVADO"', allow_blank=False)
 wo.add_data_validation(dv)
 dv.add(f"H2:H{UP}")
+dvp = DataValidation(type="list", formula1='"ENTREGA,LINEAL"', allow_blank=False)
+wo.add_data_validation(dvp)
+dvp.add(f"W2:W{UP}")
 
 # ---- Revit_Export
 wr = wb.create_sheet("Revit_Export")
 cabecera(wr, 1, ["ElementId", "Categoría", "Familia : Tipo", "Zona / Nivel", "CC_COD_PARTIDA",
-                 "CC_ID_ACTIVIDAD", "CANTIDAD", "UD", "CC_ESTADO", "CC_SEMANA_INSTALADO"],
-         [11, 22, 40, 16, 15, 15, 11, 7, 13, 18])
+                 "CC_ID_ACTIVIDAD", "CANTIDAD", "UD", "CC_ESTADO", "CC_SEMANA_INSTALADO",
+                 "HORAS MONTAJE", "HORAS GANADAS"],
+         [11, 22, 40, 16, 15, 15, 11, 7, 13, 18, 13, 13])
 fila, eid = 2, 412000
 for cod, cap, des, cant, imp, act, fuente, udm, cm in PARTIDAS:
-    if fuente != "REVIT":
+    if fuente not in EN_MODELO:
         continue
     semanas = []
     for sem, k in sorted(INSTALADO.get(cod, {}).items()):
@@ -335,10 +367,37 @@ for cod, cap, des, cant, imp, act, fuente, udm, cm in PARTIDAS:
             cell = wr.cell(row=fila, column=c, value=v)
             cell.font = f_input
         wr.cell(row=fila, column=7).number_format = "#,##0.00"
+        put(wr, f"K{fila}", f"=IFERROR(INDEX(Horas_Montaje!$C:$C,MATCH(E{fila},Horas_Montaje!$A:$A,0)),0)*G{fila}",
+            f_link, "#,##0.0")
+        put(wr, f"L{fila}", f'=IF(AND(I{fila}="Instalado",ISNUMBER(J{fila})),IF(J{fila}<={CORTE},K{fila},0),0)',
+            fmt="#,##0.0")
         fila += 1
 dv2 = DataValidation(type="list", formula1='"Pendiente,Instalado"', allow_blank=False)
 wr.add_data_validation(dv2)
 dv2.add(f"I2:I{fila-1}")
+
+# ---- Suministros (albaranes)
+wsu = wb.create_sheet("Suministros")
+cabecera(wsu, 1, ["SEMANA", "COD_PARTIDA", "CANTIDAD ENTREGADA", "Nº ALBARÁN", "OBSERVACIÓN"], [9, 13, 18, 14, 50])
+fila = 2
+for cod in sorted(SUMINISTRO):
+    for sem, q in sorted(SUMINISTRO[cod].items()):
+        for c, v in enumerate([sem, cod, q, f"ALB-{sem:02d}-{cod}", ""], 1):
+            put(wsu, f"{get_column_letter(c)}{fila}", v, f_input, "0" if c in (1,) else None)
+        fila += 1
+
+# ---- Horas_Montaje
+wh = wb.create_sheet("Horas_Montaje")
+cabecera(wh, 1, ["COD_PARTIDA", "DESCRIPCIÓN", "HORAS POR UD", "UD"], [13, 44, 14, 8])
+for i, cod in enumerate(HORAS, 2):
+    p = next(x for x in PARTIDAS if x[0] == cod)
+    put(wh, f"A{i}", cod, f_input)
+    put(wh, f"B{i}", p[2], f_input)
+    c = put(wh, f"C{i}", HORAS[cod], f_input, "#,##0.0")
+    c.fill = fill_key
+    put(wh, f"D{i}", "h/m" if p[7] == "m" else "h/ud", f_input)
+put(wh, f"A{len(HORAS)+3}", "SUPUESTO de la maqueta: sustituir por las horas-hombre que estime el instalador. "
+                            "El avance del montaje = horas de elementos instalados / horas totales.")
 
 # ---- Avance_Manual
 wm = wb.create_sheet("Avance_Manual")
@@ -358,18 +417,22 @@ for cod, cap, des, *_rest in PARTIDAS:
 # ---- Planillas
 wl = wb.create_sheet("Planillas")
 cabecera(wl, 1, ["Nº PLANILLA", "SEMANA", "COD_PARTIDA", "CANT. CERTIFICADA", "PRECIO APLICADO €",
-                 "IMPORTE €", "OBSERVACIÓN"], [12, 9, 13, 16, 16, 15, 60])
+                 "IMPORTE €", "OBSERVACIÓN", "SEMANA PAGO"], [12, 9, 13, 16, 16, 15, 60, 12])
 
 
 def ev_fisico_frio_semana(s):
-    """Fracción de elementos del modelo de frío (REVIT) montados hasta la semana s."""
-    hechos = total = 0
-    for cod, cap, des, cant, imp, act, fuente, udm, cm in PARTIDAS:
-        if cap != FRIO or fuente != "REVIT":
-            continue
-        total += N_TRAMOS if udm == "m" else int(cm)
-        hechos += sum(k for w, k in INSTALADO.get(cod, {}).items() if w <= s)
-    return hechos / total
+    """Fracción de horas de montaje de los elementos de frío ya instalados hasta la semana s."""
+    hechas = total = 0.0
+    for cod, h in HORAS.items():
+        p = next(x for x in PARTIDAS if x[0] == cod)
+        if p[7] == "m":
+            total += h * sum(TRAMOS)
+            idx = sum(k for w, k in INSTALADO.get(cod, {}).items() if w <= s)
+            hechas += h * sum(TRAMOS[:idx])
+        else:
+            total += h * p[8]
+            hechas += h * sum(k for w, k in INSTALADO.get(cod, {}).items() if w <= s)
+    return hechas / total
 
 
 fila = 2
@@ -377,9 +440,10 @@ montaje_cert = 0.0
 for s in range(3, SEMANA_CORTE + 1):
     lineas = []
     for cod, cap, des, cant, imp, act, fuente, udm, cm in PARTIDAS:
-        if fuente != "REVIT":
+        if fuente not in EN_MODELO:
             continue
-        k = INSTALADO.get(cod, {}).get(s, 0)
+        # Equipos: se certifica el suministro al entregarse; resto: al instalarse
+        k = (SUMINISTRO if fuente == "ALBARAN" else INSTALADO).get(cod, {}).get(s, 0)
         if not k:
             continue
         pu = round(pu_medicion(cod), 2)
@@ -397,7 +461,7 @@ for s in range(3, SEMANA_CORTE + 1):
             obs = "Precio contradictorio +6 % (pendiente de aprobar)"
         lineas.append((cod, q, pu, obs))
     if s == 9:
-        lineas.append(("P17", 0.5, round(pu_medicion("P17"), 2), "ACOPIO 50 %: equipo no instalado"))
+        lineas.append(("P17", 0.5, round(pu_medicion("P17"), 2), "ACOPIO 50 %: sin albarán de entrega"))
     # Montaje: el instalador certifica 4 puntos por delante del avance físico
     objetivo = min(1.0, ev_fisico_frio_semana(s) + (0.04 if s >= 5 else 0.0))
     inc = round(objetivo - montaje_cert, 4)
@@ -412,6 +476,8 @@ for s in range(3, SEMANA_CORTE + 1):
         put(wl, f"E{fila}", pu, f_input, EUR)
         put(wl, f"F{fila}", f"=ROUND(D{fila}*E{fila},2)", fmt=EUR)
         put(wl, f"G{fila}", obs, f_input)
+        if s + SEMANAS_PAGO <= SEMANA_CORTE:
+            put(wl, f"H{fila}", s + SEMANAS_PAGO, f_input, "0")
         fila += 1
 
 # ---- Extras
@@ -488,6 +554,8 @@ kpi = [
     ("Extras sin decidir", "=Extras!C8", EUR0, "No están en el BAC."),
     ("Contingencia disponible", "=Contingencia!G5", EUR0, ""),
     ("Exposición máxima (EAC + extras sin decidir)", "=B13+B18", EUR0, "Lo que el directorio debería tener presupuestado."),
+    ("Pagado a fecha de corte", f'=SUMIFS(Planillas!$F:$F,Planillas!$H:$H,"<="&{CORTE})', EUR0, "Planillas con semana de pago."),
+    ("Certificado pendiente de pago", "=B8-B21", EUR0, "Deuda con el instalador a fecha de corte."),
 ]
 for i, (a, f, fmt, nota) in enumerate(kpi, 5):
     put(ws, f"A{i}", a, f_bold)

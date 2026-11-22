@@ -7,7 +7,7 @@ Informe semanal al directorio con valor ganado (EVM): avance físico medido en u
 ## Contenido
 | Archivo | Para qué |
 |---|---|
-| `datos/Control_Proyecto_Maqueta.xlsx` | **Fuente única**. Oferta, cronograma, exportación Revit, avance manual, planillas, extras y contingencia. Se calcula solo con fórmulas (hoja `Resumen`). |
+| `datos/Control_Proyecto_Maqueta.xlsx` | **Fuente única**. Oferta, cronograma, exportación Revit, albaranes de suministro, horas de montaje, avance manual, planillas (con semana de pago), extras y contingencia. Se calcula solo con fórmulas (hoja `Resumen`). |
 | `dashboard_directorio.html` | Informe del directorio. Un solo archivo, se abre en el navegador, se imprime en PDF. |
 | `powerbi/` | CSV en estrella, medidas DAX, tema y guía de montaje. |
 | `scripts/crear_maqueta_excel.py` | Regenera el Excel de la maqueta con datos ficticios. |
@@ -15,10 +15,11 @@ Informe semanal al directorio con valor ganado (EVM): avance físico medido en u
 
 ## Ciclo semanal
 1. En Revit, actualizar `CC_ESTADO` y `CC_SEMANA_INSTALADO` de lo montado. Exportar la tabla de planificación y pegarla en la hoja `Revit_Export`.
-2. Hoja `Avance_Manual`: % acumulado de lo que no está modelado (protecciones, cargas, puesta en marcha).
-3. Hoja `Planillas`: líneas certificadas en la semana.
-4. Hoja `Parametros`: subir la semana de corte.
-5. `python scripts/generar_dashboard.py` y enviar el HTML. En Power BI, pulsar Actualizar.
+2. Hoja `Suministros`: albaranes de entrega de equipos de la semana.
+3. Hoja `Avance_Manual`: % acumulado de lo que no está modelado (protecciones, cargas, puesta en marcha).
+4. Hoja `Planillas`: líneas certificadas en la semana y, cuando se paguen, su semana de pago.
+5. Hoja `Parametros`: subir la semana de corte.
+6. `python scripts/generar_dashboard.py` y enviar el HTML. En Power BI, pulsar Actualizar.
 
 ## Parámetros compartidos a crear en Revit (hoy no existen)
 Sin esto no hay enlace modelo ↔ coste ↔ plazo. Crear como **parámetros compartidos de ejemplar** en las categorías Mechanical Equipment, Pipes, Pipe Insulations, Generic Models y Electrical Equipment (y en el resto de disciplinas cuando entren):
@@ -35,15 +36,23 @@ Tabla de planificación a exportar, con columnas en este orden: `ElementId, Cate
 
 Control de calidad que aplica la maqueta: la oferta tiene **52 desagües y 52 soportes, que corresponden a 52 evaporadores** (12 de cámaras, 30 de muelles, 2 de despojos y 8 de frescos). El modelo debe contar exactamente esos elementos. Si no salen, o el modelo o la oferta están mal.
 
-## Reglas de cálculo
-- **PV**: BAC de cada partida repartido linealmente entre el inicio y el fin de su actividad.
-- **EV**: unidades instaladas ÷ unidades del modelo × BAC. Partidas fuera del modelo: % manual. Montaje (global): proporcional al nº de elementos del modelo de frío ya montados. No se calcula por €, porque los compresores lo inflarían.
-- **AC**: importe certificado en planillas. **AC > EV significa que se paga por delante de lo instalado** (acopios, sobremediciones, precios contradictorios).
-- **SPI(t)** por *earned schedule*. Fin previsto = duración ÷ SPI(t).
+## Reglas de cálculo (validadas con dirección)
+- **PV**: equipos (perfil `ENTREGA`) al 100 % en su semana de entrega prevista; resto (perfil `LINEAL`) repartido por igual en la duración de su actividad.
+- **EV**:
+  - Equipos (fuente `ALBARAN`): unidades entregadas según albarán ÷ unidades de oferta × BAC.
+  - Resto de partidas del modelo (fuente `REVIT`): unidades instaladas ÷ unidades del modelo × BAC.
+  - Partidas fuera del modelo (`MANUAL`): % semanal.
+  - Montaje (`DERIVADO`): horas de los elementos instalados ÷ horas totales (hoja `Horas_Montaje`).
+  - Tope del 100 % por partida: lo entregado o instalado de más se alerta como alcance.
+- **AC**: importe certificado en planillas (lo que se debe). **Pagado** y **pendiente de pago** se controlan aparte. AC > EV significa que se certifica por delante de lo hecho (acopios sin albarán, sobremediciones, precios contradictorios).
+- **SPI(t)** por *earned schedule* (convención de Lipke). Fin previsto = duración ÷ SPI(t).
 - **EAC** = BAC ÷ CPI. **Exposición máxima** = EAC + extras sin decidir.
-- Semáforo: ≥ 0,95 OK · ≥ 0,85 Vigilar · ≥ 0,70 Desviado · < 0,70 Crítico. Un EAC por encima de la oferta nunca se muestra en verde.
+- Semáforo: umbral 0,95 para el proyecto y 0,90 por actividad; por debajo, ≥ 0,85 Vigilar · ≥ 0,70 Desviado · < 0,70 Crítico. Un EAC por encima de la oferta nunca se muestra en verde.
+- **Contingencia**: 0 % hasta que dirección confirme que existe y su importe.
 
 ## Supuestos a confirmar
-- Contingencia del 5 % (no figura en la oferta).
+- Existencia e importe de la contingencia (hoy 0 %).
+- Horas de montaje por tipo de elemento (hoja `Horas_Montaje`): pedirlas al instalador.
+- Semanas de entrega previstas de equipos (hoy = inicio de cada actividad) y plazo de pago (hoy ~6 semanas).
 - Cantidades de medición de tuberías y aislamiento (1.850 m) y del cuadro eléctrico (6 módulos). La oferta las da como 1 ud global.
 - Semanas límite de decisión de los extras.

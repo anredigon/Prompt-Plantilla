@@ -95,16 +95,29 @@ Fin previsto =
 VAR d = [Duración prevista (sem)]
 RETURN IF ( NOT ISBLANK ( d ), MAX ( parametros[fecha_inicio] ) + ROUND ( 7 * d, 0 ) - 3 )
 
+-- Pagos (lo certificado es lo que se debe; lo pagado se controla aparte) -----
+Pagado =
+VAR c = [Semana corte]
+RETURN CALCULATE ( SUM ( fact_planillas[importe] ),
+    FILTER ( ALL ( fact_planillas ), NOT ISBLANK ( fact_planillas[semana_pago] ) && fact_planillas[semana_pago] <= c ) )
+Pendiente de pago = [AC] - [Pagado]
+
 -- Fuera de oferta -----------------------------------------------------------
 Extras sin decidir = CALCULATE ( SUM ( extras[importe] ), extras[estado] = "Sin decidir" )
 Exposición máxima = [EAC] + [Extras sin decidir]
+-- Con contingencia_pct = 0 (sin confirmar) el resultado es negativo si hay cambios propuestos: es intencionado
 Contingencia disponible =
     MAX ( parametros[contingencia_pct] ) * CALCULATE ( [BAC], ALL ( dim_partida ) )
     - CALCULATE ( SUM ( contingencia[importe] ), contingencia[estado] IN { "Aprobado", "Propuesto" } )
 
--- Semáforo (mismo umbral que el HTML) ---------------------------------------
-Nivel SPI =
+-- Semáforo (mismos umbrales que el HTML: 0,95 proyecto, 0,90 actividades) ---
+Nivel SPI proyecto =
 VAR u = MAX ( parametros[umbral] )
+VAR v = CALCULATE ( [SPI], ALL ( dim_actividad ), ALL ( dim_partida ) )
+RETURN SWITCH ( TRUE (), ISBLANK ( v ), 0, v >= u, 4, v >= 0.85, 3, v >= 0.70, 2, 1 )
+
+Nivel SPI =
+VAR u = MAX ( parametros[umbral_actividad] )
 VAR v = [SPI]
 RETURN SWITCH ( TRUE (), ISBLANK ( v ), 0, v >= u, 4, v >= 0.85, 3, v >= 0.70, 2, 1 )
 -- 4 OK · 3 Vigilar · 2 Desviado · 1 Crítico · 0 No iniciada
