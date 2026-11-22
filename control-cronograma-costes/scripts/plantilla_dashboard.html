@@ -133,7 +133,7 @@ app.innerHTML = `
 
 <section class="heads">
   <div class="card head">
-    <div class="lab">Fin previsto al ritmo actual</div>
+    <div class="lab">${D.terminado ? 'Fin real' : 'Fin previsto al ritmo actual'}</div>
     <div class="big">${fecha(D.fin_prev)}</div>
     <div class="det">${badge(nivelPlazo)} &nbsp;${D.dur_prev == null ? 'Aún sin avance medible. Fin planificado ' + fecha(D.fin_plan) : signo(D.dur_prev - D.n_sem) + dec(D.dur_prev - D.n_sem, 1) + ' sem. sobre el plan (' + fecha(D.fin_plan) + ')'}. Retraso acumulado hoy: ${dec(D.retraso, 1)} sem.</div>
   </div>
@@ -155,7 +155,7 @@ app.innerHTML = `
   <div class="card kpi"><div class="lab">SPI (€) · SPI(t)</div><div class="val">${dec(D.SPI)} · ${dec(D.SPIt)}</div><div class="det">${badge(nivelPor(D.SPI, D.umbral))}</div></div>
   <div class="card kpi"><div class="lab">CPI</div><div class="val">${dec(D.CPI)}</div><div class="det">${badge(nivelPor(D.CPI, D.umbral))}</div></div>
   <div class="card kpi"><div class="lab">Certificado − ganado</div><div class="val">${eur(D.AC - D.EV)}</div><div class="det">AC ${keur(D.AC)} · EV ${keur(D.EV)}</div></div>
-  <div class="card kpi"><div class="lab">TCPI para cumplir oferta</div><div class="val">${dec(D.TCPI)}</div><div class="det">Eficiencia necesaria en lo que queda</div></div>
+  <div class="card kpi"><div class="lab">TCPI para cumplir oferta</div><div class="val">${D.tcpi_inalcanzable ? 'Inalcanzable' : dec(D.TCPI)}</div><div class="det">${D.tcpi_inalcanzable ? 'Ya se ha certificado toda la oferta y queda obra' : 'Eficiencia necesaria en lo que queda'}</div></div>
   <div class="card kpi"><div class="lab">Contingencia disponible</div><div class="val">${eur(D.cont_disp)}</div><div class="det">de ${eur(D.cont_ini)} (${pct(D.cont_disp / D.cont_ini)})</div></div>
 </section>
 

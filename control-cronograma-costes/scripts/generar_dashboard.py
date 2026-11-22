@@ -86,10 +86,14 @@ def pv_acum(p, w):
     return p["bac"] * min(1.0, max(0.0, (w - a["si"] + 1) / (a["sf"] - a["si"] + 1)))
 
 
+def cant_revit(p, w):
+    return sum(e["q"] for e in revit if e["cod"] == p["cod"] and e["estado"] == "Instalado"
+               and e["sem"] is not None and e["sem"] <= w)
+
+
 def pct_revit(p, w):
-    q = sum(e["q"] for e in revit if e["cod"] == p["cod"] and e["estado"] == "Instalado"
-            and e["sem"] is not None and e["sem"] <= w)
-    return q / p["cmed"]
+    # Tope 100 %: instalar más unidades de las presupuestadas no gana más valor (es alcance a revisar)
+    return min(1.0, cant_revit(p, w) / p["cmed"])
 
 
 def frac_elementos(cap, w):
@@ -138,15 +142,19 @@ curva = [dict(sem=w, pv=round(tot("pv", w), 2),
               ac=round(tot("ac", w), 2) if w <= corte else None) for w in SEMANAS]
 
 # Earned schedule: momento en que lo ganado hoy debía estar ganado
+# Convención de Lipke: C = última semana con PV acumulado <= EV; se interpola con la siguiente.
 pvs = [0.0] + [c["pv"] for c in curva]
-ES = float(len(pvs) - 1)  # si lo ganado supera todo el PV, se ha ganado el plan completo
-for t in range(1, len(pvs)):
-    if pvs[t] >= EV:
-        ES = (t - 1) + (EV - pvs[t - 1]) / (pvs[t] - pvs[t - 1]) if pvs[t] > pvs[t - 1] else t - 1
-        break
+C = max(t for t in range(len(pvs)) if pvs[t] <= EV + 1e-6)
+ES = float(C) if C == len(pvs) - 1 else C + (EV - pvs[C]) / (pvs[C + 1] - pvs[C])
 SPIt = div(ES, corte) if PV > 0 else None  # sin nada planificado aún no hay índice de plazo
 dur_prev = div(n_sem, SPIt)
-retraso_sem = corte - ES
+# Obra terminada: fin real (primera semana con EV = BAC) y SPI(t) congelado en ese momento
+terminado = EV >= BAC - 0.01
+if terminado:
+    sem_fin_real = min(c["sem"] for c in curva if c["ev"] is not None and c["ev"] >= BAC - 0.01)
+    dur_prev = float(sem_fin_real)
+    SPIt = n_sem / sem_fin_real
+retraso_sem = max(0.0, corte - ES) if not terminado else 0.0
 
 
 def fecha_fin_sem(w):
@@ -155,6 +163,9 @@ def fecha_fin_sem(w):
 
 fin_plan = fecha_fin_sem(n_sem)
 fin_prev = inicio + timedelta(days=round(7 * dur_prev) - 3) if dur_prev else None
+# TCPI: si ya se ha certificado la oferta entera y queda trabajo, cumplir el BAC es imposible
+tcpi_inalcanzable = BAC - EV > 0.01 and AC >= BAC
+TCPI = None if (tcpi_inalcanzable or BAC - EV <= 0.01) else div(BAC - EV, BAC - AC)
 
 ext_pend = sum(e["imp"] for e in extras if e["estado"] == "Sin decidir")
 cont_ini = cont_pct * BAC
@@ -223,6 +234,12 @@ for p in partidas:
         alertas.append(dict(nivel="serious", tipo="Coste",
                             texto=f"{p['desc']}: certificado {eur(exceso)} por encima de lo instalado. "
                                   + ("; ".join(obs) + "." if obs else "")))
+for p in partidas:
+    if p["fuente"] == "REVIT" and cant_revit(p, corte) > p["cmed"] + 1e-6:
+        alertas.append(dict(nivel="serious", tipo="Alcance",
+                            texto=f"{p['desc']}: instaladas {cant_revit(p, corte):,.2f} {p['ud']} frente a "
+                                  f"{p['cmed']:,.2f} presupuestadas. El exceso no suma valor ganado: "
+                                  f"revisar alcance o modelo.".replace(",", "X").replace(".", ",").replace("X", ".")))
 for c in contingencia:
     if c["estado"] == "Propuesto":
         alertas.append(dict(nivel="warning", tipo="Contingencia",
@@ -237,7 +254,7 @@ datos = dict(
     fecha_corte=(inicio + timedelta(days=7 * corte - 1)).isoformat(),
     inicio=inicio.isoformat(), fin_plan=fin_plan.isoformat(), fin_prev=fin_prev.isoformat() if fin_prev else None,
     BAC=BAC, PV=PV, EV=EV, AC=AC, SPI=SPI, CPI=CPI, EAC=EAC, VAC=BAC - EAC,
-    TCPI=div(BAC - EV, BAC - AC), ES=ES, SPIt=SPIt, retraso=retraso_sem, dur_prev=dur_prev,
+    TCPI=TCPI, tcpi_inalcanzable=tcpi_inalcanzable, terminado=terminado, ES=ES, SPIt=SPIt, retraso=retraso_sem, dur_prev=dur_prev,
     ext_pend=ext_pend, cont_ini=cont_ini, cont_cons=cont_cons, cont_prop=cont_prop, cont_disp=cont_disp,
     curva=curva, actividades=filas_act, alertas=alertas, extras=extras, contingencia=contingencia,
     umbral=umbral, generado=date.today().isoformat(),

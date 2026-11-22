@@ -274,8 +274,9 @@ for i, (cod, cap, des, cant, imp, act, fuente, udm, cm) in enumerate(PARTIDAS, 2
     put(wo, f"P{i}", f'=COUNTIFS(Revit_Export!$E:$E,A{i},Revit_Export!$I:$I,"Instalado",'
                      f'Revit_Export!$J:$J,"<="&{CORTE})', f_link, "#,##0")
     put(wo, f"V{i}", f'=COUNTIFS(Revit_Export!$E:$E,A{i})', f_link, "#,##0")
+    # % avance con tope 100 %: el exceso de unidades no gana valor (se revisa como alcance)
     put(wo, f"Q{i}",
-        f'=IF(H{i}="REVIT",O{i}/J{i},IF(H{i}="MANUAL",'
+        f'=IF(H{i}="REVIT",MIN(1,O{i}/J{i}),IF(H{i}="MANUAL",'
         f'IFERROR(INDEX(Avance_Manual!$C$2:$Z$20,MATCH(A{i},Avance_Manual!$A$2:$A$20,0),{CORTE}),0),'
         f'SUMIFS($P$2:$P${UP},$B$2:$B${UP},B{i},$H$2:$H${UP},"REVIT")/'
         f'SUMIFS($V$2:$V${UP},$B$2:$B${UP},B{i},$H$2:$H${UP},"REVIT")))', fmt=PCT)
@@ -480,7 +481,8 @@ kpi = [
     ("EAC · Estimación a la conclusión (BAC/CPI)", '=IF(AND(ISNUMBER(B12),B12<>0),B5/B12,B8+B5-B7)', EUR0,
      "Hipótesis: el rendimiento de coste actual se mantiene. Sin CPI medible: AC + (BAC − EV)."),
     ("VAC · Variación a la conclusión", "=B5-B13", EUR0, "BAC − EAC."),
-    ("TCPI · Eficiencia necesaria para cumplir BAC", '=IF(B5=B8,"-",(B5-B7)/(B5-B8))', RATIO, "> 1 = hay que mejorar."),
+    ("TCPI · Eficiencia necesaria para cumplir BAC", '=IF(B5-B7<=0.01,"-",IF(B8>=B5,"Inalcanzable",(B5-B7)/(B5-B8)))',
+     RATIO, "> 1 = hay que mejorar. 'Inalcanzable' = ya se certificó toda la oferta y queda obra."),
     ("% avance físico (EV/BAC)", "=IFERROR(B7/B5,0)", PCT, ""),
     ("% avance planificado (PV/BAC)", "=IFERROR(B6/B5,0)", PCT, ""),
     ("Extras sin decidir", "=Extras!C8", EUR0, "No están en el BAC."),
