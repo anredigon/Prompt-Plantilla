@@ -1,18 +1,18 @@
-"""Ensambla la app en un único HTML autocontenido: ../App_Control_Proyecto.html
+"""Ensambla la app de escritorio en un único HTML autocontenido: ../App_Control_Obra.html
 
-Une la cabecera/estilos (app/cabecera.html), el cuerpo (app/app_cuerpo.html), el motor de cálculo
-(app/motor.js) y la librería SheetJS (vendor/xlsx.full.min.js, Apache-2.0) para leer Excel sin conexión.
+Une la cabecera/estilos (app/cabecera.html), la app (app/escritorio.html), el motor de cálculo (app/motor.js),
+el informe (app/informe.js), utilidades (app/comun.js) y SheetJS (vendor/xlsx.full.min.js, Apache-2.0).
 """
 from pathlib import Path
 
 D = Path(__file__).resolve().parent
-html = (D / "app" / "cabecera.html").read_text(encoding="utf-8") + (D / "app" / "app_cuerpo.html").read_text(encoding="utf-8")
-libreria = (D / "vendor" / "xlsx.full.min.js").read_text(encoding="utf-8")
-motor = (D / "app" / "motor.js").read_text(encoding="utf-8")
-informe = (D / "app" / "informe.js").read_text(encoding="utf-8")
-for nombre, codigo in (("libreria", libreria), ("motor", motor), ("informe", informe)):
-    assert "</script" not in codigo.lower(), f"{nombre} contiene </script>"
-html = html.replace("/*__XLSX__*/", libreria, 1).replace("/*__MOTOR__*/", motor, 1).replace("/*__INFORME__*/", informe, 1)
-salida = D.parent / "App_Control_Proyecto.html"
+html = (D / "app" / "cabecera.html").read_text(encoding="utf-8") + (D / "app" / "escritorio.html").read_text(encoding="utf-8")
+html = html.replace("<title>Control de cronograma y costes</title>", "<title>Control de obra</title>")
+for marca, ruta in (("/*__XLSX__*/", D / "vendor" / "xlsx.full.min.js"), ("/*__MOTOR__*/", D / "app" / "motor.js"),
+                    ("/*__INFORME__*/", D / "app" / "informe.js"), ("/*__COMUN__*/", D / "app" / "comun.js")):
+    codigo = ruta.read_text(encoding="utf-8")
+    assert "</script" not in codigo.lower(), f"{ruta.name} contiene </script>"
+    html = html.replace(marca, codigo, 1)
+salida = D.parent / "App_Control_Obra.html"
 salida.write_text(html, encoding="utf-8")
 print(f"OK -> {salida} ({salida.stat().st_size / 1024:.0f} KB)")

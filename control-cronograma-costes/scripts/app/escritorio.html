@@ -1,0 +1,330 @@
+<style>
+.marco { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+.barra { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.barra h1 { font-size: clamp(22px, 3vw, 28px); margin: 0; }
+button, .boton { font: inherit; font-size: 14px; min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover, .boton:hover { border-color: var(--text-muted); }
+button.primario { background: var(--pv); border-color: var(--pv); color: #fff; font-weight: 600; }
+button.link { border: 0; background: none; color: var(--pv); padding: 4px; min-height: 0; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--pv); outline-offset: 1px; }
+input, select { font: inherit; font-size: 15px; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; }
+.botones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.tarjeta { display: grid; gap: 4px; text-align: left; align-content: start; min-height: 96px; }
+.tarjeta b { font-size: 17px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; }
+.tabs button.activa { border-bottom-color: var(--pv); font-weight: 700; }
+.form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.form label, label.campo { display: grid; gap: 4px; font-weight: 600; font-size: 14px; }
+.form .muted, label.campo .muted { font-weight: 400; }
+table.editable input, table.editable select { font-size: 14px; padding: 5px 6px; width: 100%; min-width: 56px; box-sizing: border-box; }
+table.editable td { padding: 3px; }
+.scroll { overflow-x: auto; }
+.subir { border: 2px dashed var(--border); border-radius: 10px; padding: 14px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--surface-0); }
+.subir.sobre { border-color: var(--pv); }
+.ok { border-left: 3px solid var(--good); padding: 6px 10px; background: var(--surface-0); font-size: 14px; }
+.manuales { display: grid; gap: 8px; }
+.manuales label { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.manuales input { width: 80px; text-align: right; }
+.aviso { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: min(680px, 92vw); padding: 10px 16px; border-radius: 8px; background: var(--text-primary); color: var(--surface-1); font-size: 14px; z-index: 20; }
+.aviso.error { background: var(--critical); color: #fff; }
+.pie-guardar { position: sticky; bottom: 0; background: var(--surface-0); padding: 10px 0; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); }
+#app.wrap { max-width: none; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <div class="marco" id="vista"></div>
+  <div class="tt" id="tt" role="tooltip"></div>
+  <div class="aviso" id="aviso" hidden role="status"></div>
+</div>
+<script id="lib-xlsx">/*__XLSX__*/</script>
+<script id="motor">/*__MOTOR__*/</script>
+<script id="informe">/*__INFORME__*/</script>
+<script id="comun">/*__COMUN__*/</script>
+<script>
+{
+const S = { raiz: null, proyectos: [], dir: null, archivo: null, datos: null, tab: 'informe', corteVista: null, semana: null, cambios: false };
+const vista = document.getElementById('vista');
+const avisoEl = document.getElementById('aviso');
+const FUENTES = ['ALBARAN', 'REVIT', 'MANUAL', 'DERIVADO'];
+const clon = o => JSON.parse(JSON.stringify(o));
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const lunesDe = iso => { const d = new Date(iso + 'T00:00:00Z'); return new Date(d - ((d.getUTCDay() + 6) % 7) * 864e5).toISOString().slice(0, 10); };
+const semanaHoy = d => Math.max(1, Math.min(104, Math.floor((new Date(hoyISO() + 'T00:00:00Z') - new Date(d.inicio + 'T00:00:00Z')) / 6048e5) + 1));
+function aviso(t, tipo) { avisoEl.textContent = t; avisoEl.className = 'aviso ' + (tipo || ''); avisoEl.hidden = !t; if (t) setTimeout(() => { if (avisoEl.textContent === t) avisoEl.hidden = true; }, 6000); }
+
+// ------------------------------------------------------------------ carpetas (Chrome / Edge)
+const idb = (modo, clave, valor) => new Promise((ok, mal) => {
+  const r = indexedDB.open('control-obra', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('k');
+  r.onsuccess = () => { const tx = r.result.transaction('k', modo === 'set' ? 'readwrite' : 'readonly'); const st = tx.objectStore('k');
+    const q = modo === 'set' ? st.put(valor, clave) : st.get(clave); q.onsuccess = () => ok(q.result); q.onerror = () => mal(q.error); };
+  r.onerror = () => mal(r.error);
+});
+async function permiso(h) { const o = { mode: 'readwrite' }; return (await h.queryPermission(o)) === 'granted' || (await h.requestPermission(o)) === 'granted'; }
+async function subcarpeta(dir, nombre) { return dir.getDirectoryHandle(nombre, { create: true }); }
+async function escribirArchivo(dir, nombre, datos) { const f = await (await dir.getFileHandle(nombre, { create: true })).createWritable(); await f.write(datos); await f.close(); }
+async function buscarExcel(dir) { for await (const [nombre, h] of dir.entries()) if (h.kind === 'file' && /^Control_.*\.xlsx$/i.test(nombre)) return nombre; return null; }
+
+async function elegirRaiz() {
+  if (!window.showDirectoryPicker) return aviso('Abre este archivo con Google Chrome o Microsoft Edge.', 'error');
+  try { S.raiz = await showDirectoryPicker({ id: 'proyectos', mode: 'readwrite' }); await idb('set', 'raiz', S.raiz); await listar(); }
+  catch (e) { if (e.name !== 'AbortError') aviso('No se ha podido abrir la carpeta: ' + e.message, 'error'); }
+}
+async function listar() {
+  S.proyectos = [];
+  for await (const [nombre, h] of S.raiz.entries()) {
+    if (h.kind !== 'directory') continue;
+    const excel = await buscarExcel(h);
+    if (excel) S.proyectos.push({ nombre, dir: h, excel });
+  }
+  S.proyectos.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  S.dir = null; pintar();
+}
+async function abrir(p) {
+  try {
+    const wb = XLSX.read(new Uint8Array(await (await (await p.dir.getFileHandle(p.excel)).getFile()).arrayBuffer()), { type: 'array' });
+    S.datos = leerLibro(wb); S.dir = p.dir; S.archivo = p.excel; S.tab = 'informe'; S.corteVista = null; S.semana = null; S.cambios = false; pintar();
+  } catch (e) { aviso('No se ha podido abrir ' + p.excel + ': ' + e.message, 'error'); }
+}
+async function nuevo() {
+  const nombre = (document.getElementById('nuevo-nombre').value || '').trim();
+  if (!nombre) return aviso('Escribe el nombre del proyecto.');
+  if (S.proyectos.some(p => p.nombre.toLowerCase() === nombre.toLowerCase())) return aviso('Ya existe un proyecto con ese nombre.');
+  if (!(await permiso(S.raiz))) return aviso('Sin permiso para escribir en la carpeta.', 'error');
+  S.dir = await subcarpeta(S.raiz, nombre); S.archivo = 'Control_' + slug(nombre) + '.xlsx';
+  S.datos = { proyecto: nombre, inicio: lunesDe(hoyISO()), n_sem: 24, corte: 1, cont_pct: 0, umbral: 0.95, umbral_act: 0.9, actividades: [], partidas: [],
+              revit: [], manual: {}, suministros: [], horas: {}, planillas: [], extras: [], contingencia: [], avisos: [] };
+  await guardar(); S.tab = 'proyecto'; pintar();
+}
+async function guardar() {
+  if (!(await permiso(S.dir))) { aviso('Sin permiso para escribir en la carpeta del proyecto.', 'error'); return false; }
+  try { await escribirArchivo(S.dir, S.archivo, xlsxBlob(excelProyecto(S.datos))); S.cambios = false; aviso('Guardado en ' + S.archivo); return true; }
+  catch (e) { aviso('No se ha podido guardar (¿tienes el Excel abierto?): ' + e.message, 'error'); return false; }
+}
+async function guardarDocumento(file, carpeta) {
+  if (!(await permiso(S.dir))) return null;
+  const destino = await subcarpeta(await subcarpeta(S.dir, 'Documentos'), carpeta);
+  await escribirArchivo(destino, file.name, file);
+  return 'Documentos/' + carpeta + '/' + file.name;
+}
+
+// ------------------------------------------------------------------ tablas editables
+const colsPartidas = d => [{ k: 'cod', t: 'Código', ancho: '64px' }, { k: 'cap', t: 'Capítulo', ancho: '130px' }, { k: 'desc', t: 'Descripción', ancho: '220px' },
+  { k: 'bac', t: 'Importe €', num: 1, ancho: '110px' }, { k: 'act', t: 'Actividad', opciones: ['', ...d.actividades.map(a => a.id)] },
+  { k: 'fuente', t: 'Avance por', opciones: FUENTES }, { k: 'perfil', t: 'Plan', opciones: ['LINEAL', 'ENTREGA'] }, { k: 'ud', t: 'Ud', ancho: '50px' },
+  { k: 'cmed', t: 'Cantidad', num: 1, ancho: '80px' }, { k: 'sem_ent', t: 'Sem. entrega', num: 1, ancho: '60px' }, { k: 'horas', t: 'Horas/ud', num: 1, ancho: '60px' }];
+const TABLAS = {
+  't-partidas': { lista: () => S.datos.partidas, cols: () => colsPartidas(S.datos), nueva: () => ({ cod: 'P' + String(S.datos.partidas.length + 1).padStart(2, '0'), cap: '', desc: '', bac: null, act: '', fuente: 'MANUAL', perfil: 'LINEAL', ud: 'ud', cmed: 1, sem_ent: null }) },
+  't-actividades': { lista: () => S.datos.actividades, cols: () => [{ k: 'id', t: 'ID', ancho: '80px' }, { k: 'nombre', t: 'Actividad', ancho: '280px' }, { k: 'si', t: 'Semana inicio', num: 1, ancho: '70px' }, { k: 'sf', t: 'Semana fin', num: 1, ancho: '70px' }, { k: 'pred', t: 'Predecesora', ancho: '90px' }],
+    nueva: () => ({ id: 'ACT-' + String((S.datos.actividades.length + 1) * 10).padStart(3, '0'), nombre: '', si: 1, sf: 1, pred: '' }) },
+  't-extras': { lista: () => S.datos.extras, cols: () => [{ k: 'cod', t: 'Código', ancho: '60px' }, { k: 'desc', t: 'Concepto no incluido en oferta', ancho: '260px' }, { k: 'imp', t: 'Importe €', num: 1, ancho: '110px' }, { k: 'estado', t: 'Estado', opciones: ['Sin decidir', 'Aprobado', 'Rechazado'] }, { k: 'limite', t: 'Decidir antes de semana', num: 1, ancho: '70px' }, { k: 'motivo', t: 'Motivo', ancho: '220px' }],
+    nueva: () => ({ cod: 'X' + String(S.datos.extras.length + 1).padStart(2, '0'), desc: '', imp: null, estado: 'Sin decidir', limite: null, motivo: '' }) },
+  't-contingencia': { lista: () => S.datos.contingencia, cols: () => [{ k: 'sem', t: 'Semana', num: 1, ancho: '60px' }, { k: 'concepto', t: 'Cambio / imprevisto', ancho: '300px' }, { k: 'imp', t: 'Importe €', num: 1, ancho: '110px' }, { k: 'estado', t: 'Estado', opciones: ['Propuesto', 'Aprobado', 'Rechazado'] }],
+    nueva: () => ({ sem: S.datos.corte, concepto: '', imp: null, estado: 'Propuesto' }) },
+  't-alb': { lista: () => S.semana.albaranes, cols: () => [{ k: 'cod', t: 'Partida', opciones: ['', ...S.datos.partidas.map(p => p.cod)] }, { k: 'q', t: 'Cantidad entregada', num: 1, ancho: '90px' }, { k: 'alb', t: 'Nº albarán', ancho: '120px' }],
+    nueva: () => ({ cod: '', q: null, alb: '' }) },
+  't-pla': { lista: () => S.semana.planillas, cols: () => [{ k: 'n', t: 'Nº certificación', ancho: '100px' }, { k: 'cod', t: 'Partida', opciones: ['', ...S.datos.partidas.map(p => p.cod)] }, { k: 'q', t: 'Cantidad', num: 1, ancho: '80px' }, { k: 'pu', t: 'Precio €', num: 1, ancho: '100px' }, { k: 'obs', t: 'Observación', ancho: '220px' }],
+    nueva: () => ({ n: S.semana.planillas[0] ? S.semana.planillas[0].n : '', cod: '', q: null, pu: null, obs: '' }) },
+};
+function leerTablas() {
+  for (const t of document.querySelectorAll('table.editable')) {
+    const def = TABLAS[t.id]; if (!def) continue;
+    const lista = def.lista();
+    for (const tr of t.tBodies[0].rows) {
+      const fila = lista[+tr.dataset.i]; if (!fila) continue;
+      for (const el of tr.querySelectorAll('[data-k]')) {
+        const k = el.dataset.k, numerica = el.closest('td').classList.contains('n');
+        if (t.id === 't-partidas' && k === 'horas') { const h = n(el.value); if (h == null) delete S.datos.horas[fila.cod]; else S.datos.horas[fila.cod] = h; continue; }
+        fila[k] = numerica ? n(el.value) : el.value.trim();
+      }
+    }
+  }
+  const v = id => document.getElementById(id);
+  if (v('g-nombre')) {
+    S.datos.proyecto = v('g-nombre').value.trim() || S.datos.proyecto;
+    if (v('g-inicio').value) S.datos.inicio = lunesDe(v('g-inicio').value);
+    S.datos.n_sem = Math.max(1, Math.min(104, Math.round(n(v('g-nsem').value) || 24)));
+    S.datos.cont_pct = (n(v('g-cont').value) || 0) / 100;
+  }
+}
+const subir = (id, texto, multiple) => `<label class="subir" data-drop="${id}"><span><b>${texto}</b><br><span class="muted">Arrastra aquí o pulsa para elegir</span></span><input type="file" id="${id}" ${multiple ? 'multiple' : ''} hidden><span class="boton">Elegir archivo</span></label>`;
+
+// ------------------------------------------------------------------ pantallas
+function pintar() {
+  if (!S.raiz) return pintarBienvenida();
+  if (!S.dir) return pintarProyectos();
+  pintarProyecto();
+}
+function pintarBienvenida() {
+  vista.innerHTML = `<div class="barra"><h1>Control de obra</h1></div>
+  <div class="card" style="display:grid;gap:12px;justify-items:start"><h2>Elige tu carpeta de proyectos</h2>
+    <p>La carpeta de Drive donde guardas las obras (por ejemplo <b>D:\\Google Drive\\…\\Proyectos</b>). Cada obra será una subcarpeta con su Excel, sus documentos y sus informes. Solo se pide la primera vez.</p>
+    <button class="primario" data-accion="raiz">Elegir carpeta de proyectos</button>
+    ${window.showDirectoryPicker ? '' : '<p class="error">Este navegador no permite trabajar con carpetas. Abre el archivo con Google Chrome o Microsoft Edge.</p>'}</div>`;
+}
+function pintarProyectos() {
+  vista.innerHTML = `<div class="barra"><div><span class="muted">Carpeta: ${esc(S.raiz.name)}</span><h1>Proyectos</h1></div><button data-accion="raiz">Cambiar carpeta</button></div>
+  ${S.proyectos.length ? `<div class="rejilla">${S.proyectos.map((p, i) => `<button class="card tarjeta" data-accion="abrir" data-i="${i}"><b>${esc(p.nombre)}</b><span class="muted">${esc(p.excel)}</span></button>`).join('')}</div>`
+    : '<div class="card"><p>No hay proyectos todavía en esta carpeta.</p></div>'}
+  <div class="card botones"><label class="campo" style="flex:1;min-width:240px">Nuevo proyecto<input id="nuevo-nombre" placeholder="Nombre de la obra"></label><button class="primario" data-accion="nuevo">Crear</button></div>`;
+}
+function pintarProyecto() {
+  const d = S.datos;
+  const tabs = [['informe', 'Informe'], ['semana', 'Actualizar semana'], ['proyecto', 'Datos del proyecto'], ['documentos', 'Documentos']];
+  vista.innerHTML = `<div class="barra"><div><button class="link" data-accion="volver">← Proyectos</button><h1>${esc(d.proyecto)}</h1></div>
+    <span class="muted">${esc(S.archivo)}</span></div>
+  <nav class="tabs">${tabs.map(([k, t]) => `<button class="${S.tab === k ? 'activa' : ''}" data-accion="tab" data-tab="${k}">${t}</button>`).join('')}</nav><div id="contenido"></div>`;
+  const c = document.getElementById('contenido');
+  if (S.tab === 'informe') {
+    let r; try { r = calcularDatos(d, S.corteVista ? { corte: S.corteVista } : {}); }
+    catch (e) { c.innerHTML = `<div class="card"><p>${esc(e.message)}</p><p>Completa <b>Datos del proyecto</b>: partidas con importe y actividad, y el cronograma.</p><button class="primario" data-accion="tab" data-tab="proyecto">Ir a datos del proyecto</button></div>`; return; }
+    c.innerHTML = `<div class="botones" style="margin:12px 0"><label class="campo">Semana de corte<input type="number" id="corte-vista" min="1" max="104" value="${r.D.corte}" style="width:80px"></label>
+      <button class="primario" data-accion="guardar-informe">Guardar informe en la carpeta</button><button data-accion="imprimir">Imprimir / PDF</button></div><div class="wrap" id="app"></div>`;
+    render(r.D, 'incrustado'); S.ultimo = r.D;
+  }
+  if (S.tab === 'proyecto') {
+    c.innerHTML = `
+    <div class="card"><h2>Datos generales</h2><div class="form">
+      <label>Nombre<input id="g-nombre" value="${esc(d.proyecto)}"></label>
+      <label>Inicio de obra<input id="g-inicio" type="date" value="${esc(d.inicio)}"><span class="muted">Semana 1 = lunes de esa semana</span></label>
+      <label>Duración (semanas)<input id="g-nsem" value="${d.n_sem}" inputmode="numeric"></label>
+      <label>Contingencia aprobada (%)<input id="g-cont" value="${(d.cont_pct * 100).toLocaleString('es-ES')}" inputmode="decimal"></label></div></div>
+    <div class="card"><h2>Cronograma</h2>${subir('imp-crono', 'Importar cronograma desde Excel o CSV (columnas: ID, actividad, semana inicio, semana fin)')}${tabla('t-actividades', TABLAS['t-actividades'].cols(), d.actividades)}</div>
+    <div class="card"><h2>Presupuesto y cómo se mide cada partida</h2>
+      ${subir('imp-pres', 'Importar presupuesto desde Excel o CSV (columnas: código, capítulo, descripción, importe)')}
+      <p class="muted">Avance por: <b>ALBARAN</b> = se gana al entregarse · <b>REVIT</b> = al marcarse instalado en Revit · <b>MANUAL</b> = % semanal · <b>DERIVADO</b> = montaje, con las horas de lo instalado. Plan <b>ENTREGA</b> = todo el importe en la semana de entrega.</p>
+      ${tabla('t-partidas', TABLAS['t-partidas'].cols(), d.partidas.map(p => ({ ...p, horas: d.horas[p.cod] ?? '' })))}
+      <p class="muted">Total: <b>${eur(d.partidas.reduce((s, p) => s + (p.bac || 0), 0))}</b></p></div>
+    <div class="card"><h2>Extras no incluidos en la oferta</h2>${tabla('t-extras', TABLAS['t-extras'].cols(), d.extras)}</div>
+    <div class="card"><h2>Cambios contra contingencia</h2>${tabla('t-contingencia', TABLAS['t-contingencia'].cols(), d.contingencia)}</div>
+    <div class="pie-guardar"><button class="primario" data-accion="guardar">Guardar proyecto</button></div>`;
+  }
+  if (S.tab === 'semana') {
+    if (!S.semana) S.semana = { corte: semanaHoy(d), revit: null, albaranes: [], planillas: [], docs: [] };
+    const s = S.semana;
+    const manuales = d.partidas.filter(p => p.fuente === 'MANUAL');
+    const ultimo = cod => { const ser = (d.manual || {})[cod] || []; for (let w = Math.min(s.corte, ser.length); w >= 1; w--) if (ser[w - 1] != null) return ser[w - 1]; return 0; };
+    const sinPagar = Object.values(d.planillas.reduce((g, x) => { if (x.sem_pago != null) return g;  // una casilla por certificación
+      const k = (x.n || 'Sin nº') + '|' + x.sem; g[k] = g[k] || { k, n: x.n || 'Sin nº', sem: x.sem, imp: 0 }; g[k].imp += x.q * x.pu; return g; }, {}));
+    c.innerHTML = `
+    <div class="card"><h2>Semana</h2><label class="campo">Semana de obra<input type="number" id="s-corte" min="1" max="104" value="${s.corte}" style="width:90px"></label></div>
+    <div class="card"><h2>Avance en Revit</h2>${subir('s-revit', 'Subir Revit_Avance_….csv (botón Exportar avance de Revit)')}
+      ${s.revit ? `<p class="ok">${esc(s.revit.archivo)}: ${s.revit.total} elementos con partida, ${s.revit.items.filter(x => x.estado === 'Instalado').reduce((a, x) => a + x.nElem, 0)} instalados.</p>` : ''}</div>
+    <div class="card"><h2>Albaranes de entrega</h2>${subir('s-alb-doc', 'Subir albaranes (PDF o foto): se guardan en Documentos/Albaranes', true)}${tabla('t-alb', TABLAS['t-alb'].cols(), s.albaranes)}</div>
+    <div class="card"><h2>Certificación del contratista</h2>${subir('s-pla-doc', 'Subir certificación (PDF o Excel): se guarda en Documentos/Certificaciones', true)}${tabla('t-pla', TABLAS['t-pla'].cols(), s.planillas)}</div>
+    ${manuales.length ? `<div class="card"><h2>Avance de lo que no está en Revit</h2><div class="manuales">${manuales.map(p => `<label>${esc(p.cod)} · ${esc(p.desc)}<span><input type="number" min="0" max="100" step="5" data-manual="${esc(p.cod)}" value="${Math.round(ultimo(p.cod) * 100)}"> %</span></label>`).join('')}</div></div>` : ''}
+    ${sinPagar.length ? `<div class="card"><h2>Pagos realizados esta semana</h2>${sinPagar.map(x => `<label style="display:block;margin:6px 0"><input type="checkbox" data-pago="${esc(x.k)}"> Certificación <b>${esc(x.n)}</b> · semana ${x.sem} · ${eur(x.imp)}</label>`).join('')}</div>` : ''}
+    ${d.extras.length ? `<div class="card"><h2>Decisiones sobre extras</h2>${d.extras.map((e, i) => `<label style="display:flex;justify-content:space-between;gap:12px;margin:6px 0">${esc(e.desc)} (${eur(e.imp)})<select data-extra="${i}">${['Sin decidir', 'Aprobado', 'Rechazado'].map(o => `<option ${o === e.estado ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`).join('')}</div>` : ''}
+    <div class="pie-guardar"><button class="primario" data-accion="guardar-semana">Guardar semana</button></div>`;
+  }
+  if (S.tab === 'documentos') { c.innerHTML = `<div class="card"><h2>Documentos del proyecto</h2>${subir('d-docs', 'Subir documentos (oferta, cronograma, contratos…): se guardan en Documentos/General', true)}<div id="lista-docs" class="muted">Leyendo…</div></div>`; listarDocs(); }
+}
+async function listarDocs() {
+  const el = document.getElementById('lista-docs'); const filas = [];
+  try {
+    const docs = await S.dir.getDirectoryHandle('Documentos', { create: false });
+    for await (const [carpeta, h] of docs.entries()) if (h.kind === 'directory') for await (const [nombre, f] of h.entries()) if (f.kind === 'file') filas.push({ carpeta, nombre, f });
+  } catch (e) { /* aún no hay documentos */ }
+  S.docs = filas;
+  el.innerHTML = filas.length ? `<table><thead><tr><th>Carpeta</th><th>Archivo</th><th></th></tr></thead><tbody>${filas.map((x, i) => `<tr><td>${esc(x.carpeta)}</td><td>${esc(x.nombre)}</td><td><button class="link" data-accion="ver-doc" data-i="${i}">Abrir</button></td></tr>`).join('')}</tbody></table>` : 'Todavía no hay documentos.';
+}
+
+// ------------------------------------------------------------------ importaciones sencillas desde Excel/CSV
+async function filasDe(file) { const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' }); return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null }).filter(r => r.some(v => v != null && v !== '')); }
+const esCabecera = r => r.every(v => v == null || typeof v === 'string');
+async function importarCrono(file) {
+  let filas = await filasDe(file); if (filas.length && esCabecera(filas[0])) filas = filas.slice(1);
+  const acts = filas.filter(r => r[0] != null && n(r[2]) != null && n(r[3]) != null).map(r => ({ id: String(r[0]).trim(), nombre: String(r[1] ?? '').trim(), si: Math.round(n(r[2])), sf: Math.round(n(r[3])), pred: String(r[4] ?? '').trim() }));
+  if (!acts.length) return aviso('No se han encontrado actividades. Columnas esperadas: ID, actividad, semana inicio, semana fin.', 'error');
+  S.datos.actividades = acts; S.cambios = true; pintar(); aviso(acts.length + ' actividades importadas. Revisa y guarda.');
+}
+async function importarPres(file) {
+  let filas = await filasDe(file); if (filas.length && esCabecera(filas[0])) filas = filas.slice(1);
+  const ps = filas.filter(r => r[0] != null && n(r[3]) != null).map(r => ({ cod: String(r[0]).trim(), cap: String(r[1] ?? '').trim(), desc: String(r[2] ?? '').trim(), bac: n(r[3]), act: '', fuente: 'MANUAL', perfil: 'LINEAL', ud: 'ud', cmed: 1, sem_ent: null }));
+  if (!ps.length) return aviso('No se han encontrado partidas. Columnas esperadas: código, capítulo, descripción, importe.', 'error');
+  S.datos.partidas = ps; S.cambios = true; pintar(); aviso(ps.length + ' partidas importadas. Asigna actividad y cómo se mide, y guarda.');
+}
+
+// ------------------------------------------------------------------ eventos
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('[data-accion]'); if (!b) return;
+  const a = b.dataset.accion;
+  if (S.dir && ['proyecto', 'semana'].includes(S.tab)) leerTablas();
+  if (a === 'raiz') return elegirRaiz();
+  if (a === 'abrir') return abrir(S.proyectos[+b.dataset.i]);
+  if (a === 'nuevo') return nuevo();
+  if (a === 'volver') { if (S.cambios && !window.confirm('Hay cambios sin guardar. ¿Salir igualmente?')) return; return listar(); }
+  if (a === 'tab') { S.tab = b.dataset.tab; return pintar(); }
+  if (a === 'anadir-fila') { TABLAS[b.dataset.tabla].lista().push(TABLAS[b.dataset.tabla].nueva()); S.cambios = true; return pintar(); }
+  if (a === 'borrar-fila') { TABLAS[b.dataset.tabla].lista().splice(+b.dataset.i, 1); S.cambios = true; return pintar(); }
+  if (a === 'guardar') { try { calcularDatos(S.datos, {}); } catch (e) { aviso('Guardado, pero falta algo para el informe: ' + e.message); } await guardar(); return pintar(); }
+  if (a === 'imprimir') return window.print();
+  if (a === 'guardar-informe') {
+    const D = S.ultimo; const css = document.querySelector('style').textContent; const js = document.getElementById('informe').textContent;
+    const html = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Informe ' + esc(D.proyecto) + ' S' + D.corte + '</title><style>' + css + '</style></head><body><div class="viz-root"><div class="wrap" id="app"></div><div class="tt" id="tt"></div></div><script>' + js + '\nrender(' + JSON.stringify(D).replace(/</g, '\\u003c') + ', "informe");<\/script></body></html>';
+    if (!(await permiso(S.dir))) return;
+    const nombre = 'Informe_S' + String(D.corte).padStart(2, '0') + '.html';
+    await escribirArchivo(await subcarpeta(S.dir, 'Informes'), nombre, new Blob([html], { type: 'text/html' }));
+    return aviso('Informe guardado en Informes/' + nombre);
+  }
+  if (a === 'ver-doc') { const x = S.docs[+b.dataset.i]; window.open(URL.createObjectURL(await x.f.getFile()), '_blank'); return; }
+  if (a === 'guardar-semana') {
+    const s = S.semana, d = S.datos;
+    if (s.albaranes.some(x => !x.cod || x.q == null) || s.planillas.some(x => !x.cod || x.q == null || x.pu == null)) return aviso('Completa partida, cantidad (y precio en la certificación) o quita la fila.', 'error');
+    d.corte = s.corte;
+    if (s.revit) d.revit = s.revit.items;
+    d.suministros.push(...s.albaranes.map(x => ({ sem: s.corte, cod: x.cod, q: x.q, alb: x.alb })));
+    d.planillas.push(...s.planillas.map(x => ({ n: x.n, sem: s.corte, cod: x.cod, q: x.q, pu: x.pu, obs: x.obs, sem_pago: null })));
+    for (const el of document.querySelectorAll('[data-manual]')) {
+      const ser = d.manual[el.dataset.manual] = d.manual[el.dataset.manual] || [];
+      let previo = 0; for (let w = 1; w < s.corte; w++) { if (ser[w - 1] == null) ser[w - 1] = previo; previo = ser[w - 1]; }
+      ser[s.corte - 1] = Math.min(100, Math.max(0, n(el.value) || 0)) / 100;
+    }
+    for (const el of document.querySelectorAll('[data-pago]')) if (el.checked)
+      for (const x of d.planillas) if (x.sem_pago == null && (x.n || 'Sin nº') + '|' + x.sem === el.dataset.pago) x.sem_pago = s.corte;
+    for (const el of document.querySelectorAll('[data-extra]')) d.extras[+el.dataset.extra].estado = el.value;
+    if (await guardar()) { S.semana = null; S.tab = 'informe'; S.corteVista = null; pintar(); }
+  }
+});
+document.addEventListener('change', async ev => {
+  const t = ev.target;
+  if (t.id === 'corte-vista') { S.corteVista = Math.round(n(t.value) || 1); return pintar(); }
+  if (t.id === 's-corte') { leerTablas(); S.semana.corte = Math.max(1, Math.min(104, Math.round(n(t.value) || 1))); return pintar(); }
+  if (t.dataset.manual || t.dataset.pago || t.dataset.extra) return;
+  if (t.closest('table.editable') || t.id.startsWith('g-')) { S.cambios = true; return; }
+  if (t.type === 'file') { const fs = [...t.files]; t.value = ''; if (fs.length) await archivos(t.id, fs); }  // solo se vacían los selectores de archivo
+});
+async function archivos(id, files) {
+  if (S.dir && ['proyecto', 'semana'].includes(S.tab)) leerTablas();
+  try {
+    if (id === 'imp-crono') return importarCrono(files[0]);
+    if (id === 'imp-pres') return importarPres(files[0]);
+    if (id === 's-revit') { S.semana.revit = await leerRevit(files[0]); if (!S.semana.revit.total) aviso('El archivo no tiene elementos con CC_COD_PARTIDA.', 'error'); return pintar(); }
+    const carpeta = { 's-alb-doc': 'Albaranes', 's-pla-doc': 'Certificaciones', 'd-docs': 'General' }[id];
+    if (carpeta) {
+      const rutas = []; for (const f of files) { const r = await guardarDocumento(f, carpeta); if (r) rutas.push(r); }
+      if (id === 's-alb-doc' && !S.semana.albaranes.length) S.semana.albaranes.push(TABLAS['t-alb'].nueva());
+      if (id === 's-pla-doc' && !S.semana.planillas.length) S.semana.planillas.push({ ...TABLAS['t-pla'].nueva(), n: files[0].name.replace(/\.[^.]+$/, '') });
+      pintar(); aviso(rutas.length + ' archivo(s) guardados en Documentos/' + carpeta + (id !== 'd-docs' ? '. Escribe sus líneas en la tabla.' : '.'));
+    }
+  } catch (e) { aviso('No se ha podido leer el archivo: ' + e.message, 'error'); }
+}
+document.addEventListener('dragover', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('sobre'); } });
+document.addEventListener('dragleave', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (z) z.classList.remove('sobre'); });
+document.addEventListener('drop', e => { const z = e.target.closest && e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('sobre'); archivos(z.dataset.drop, [...e.dataTransfer.files]); });
+window.addEventListener('beforeunload', e => { if (S.cambios) { e.preventDefault(); e.returnValue = ''; } });
+
+window.__app = S;
+(async () => {  // recuerda la carpeta de proyectos de la última vez
+  try { const h = await idb('get', 'raiz'); if (h && (await h.queryPermission({ mode: 'readwrite' })) === 'granted') { S.raiz = h; return listar(); } if (h) S.raizGuardada = h; } catch (e) { /* primera vez */ }
+  pintar();
+  if (S.raizGuardada) vista.querySelector('.card').insertAdjacentHTML('beforeend', `<button data-accion="reabrir">Volver a abrir «${esc(S.raizGuardada.name)}»</button>`);
+})();
+document.addEventListener('click', async ev => { if (ev.target.dataset.accion === 'reabrir' && (await S.raizGuardada.requestPermission({ mode: 'readwrite' })) === 'granted') { S.raiz = S.raizGuardada; listar(); } });
+}
+</script>
+</body>
+</html>

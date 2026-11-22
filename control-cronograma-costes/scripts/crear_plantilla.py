@@ -27,7 +27,7 @@ E = None
 if args.ejemplo:
     import datos_ejemplo as E  # noqa: N812
 SALIDA = Path(args.salida) if args.salida else (
-    BASE / "ejemplo" / "Ejemplo_Control_Proyecto.xlsx" if E else BASE / "plantilla" / "Plantilla_Control_Proyecto.xlsx")
+    BASE / "ejemplo" / "Control_Ejemplo.xlsx" if E else BASE / "Plantilla_Control_Proyecto.xlsx")
 
 # Capacidad de la plantilla
 MAX_PART, MAX_ACT, MAX_REVIT, MAX_PLAN = 300, 150, 5000, 2000
