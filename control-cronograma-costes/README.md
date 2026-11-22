@@ -4,6 +4,13 @@ Herramienta para controlar cualquier proyecto con valor ganado (EVM) e informar 
 
 **Cómo funciona:** cada proyecto tiene su propio Excel en su carpeta de Drive (los datos). Una única app HTML lo lee y genera el informe (la vista). No hace falta instalar nada ni hay servidor, y los datos no salen de tu ordenador.
 
+## Tres formas de usarla
+1. **App con IA en claude.ai** (recomendada): artefacto *«Control de obra · valor ganado»* en tu cuenta de claude.ai. Te guía paso a paso, lee adjuntos con IA (oferta en PDF, cronograma, albaranes, certificaciones), guarda los proyectos y respeta los permisos con que la compartas. Código en `claude_app/`.
+2. **Botones de Revit** (pyRevit): preparan el modelo, marcan lo instalado y exportan el avance que lee la app. Instalación en `revit/LEEME_REVIT.md`.
+3. **App sin conexión** (`App_Control_Proyecto.html`) + plantilla Excel: la misma lógica sin IA ni internet, a partir del Excel del proyecto. Sirve de respaldo y es compatible: la app de claude.ai exporta e importa ese mismo Excel.
+
+Las tres usan el mismo motor de cálculo (`scripts/app/motor.js`) y el mismo informe (`scripts/app/informe.js`).
+
 ## Contenido
 | Archivo | Para qué |
 |---|---|
@@ -13,6 +20,8 @@ Herramienta para controlar cualquier proyecto con valor ganado (EVM) e informar 
 | `ejemplo/Informe_Ejemplo_S11.html` | Informe exportado desde la app con el ejemplo. Así es lo que recibe el directorio. |
 | `ejemplo/PowerBI_Ejemplo.xlsx` | Datos para Power BI exportados desde la app con el ejemplo. |
 | `powerbi/` | Guía de montaje, medidas DAX y tema de colores. |
+| `claude_app/` | App de claude.ai: fuente en `src/`, archivos publicados en `publicar/` (se generan con `scripts/construir_claude_app.py`). |
+| `revit/` | Extensión pyRevit `ControlObra.extension` y su guía `LEEME_REVIT.md`. |
 | `scripts/` | Mantenimiento: generar la plantilla (`crear_plantilla.py`), ensamblar la app (`construir_app.py`) y probarla (`probar_app.js`). No hacen falta para usarla. |
 
 ## Empezar un proyecto nuevo
@@ -85,4 +94,7 @@ python scripts/crear_plantilla.py --ejemplo    # ejemplo relleno
 python scripts/construir_app.py                # ensambla App_Control_Proyecto.html
 node scripts/probar_app.js                     # prueba la app con el ejemplo (requiere Playwright)
 ```
-La app usa SheetJS (`scripts/vendor/xlsx.full.min.js`, licencia Apache-2.0) para leer Excel en el navegador.
+python scripts/construir_claude_app.py         # prepara claude_app/publicar para publicar en claude.ai
+```
+Las apps usan SheetJS (`scripts/vendor/xlsx.full.min.js`) y pdf.js (`scripts/vendor/pdfjs/`), ambas con licencia Apache-2.0, para leer Excel y PDF en el navegador. Sus caracteres de control se guardan escapados (`\uXXXX`) para que el servidor de artefactos acepte los archivos como texto.
+```

@@ -9,9 +9,10 @@ D = Path(__file__).resolve().parent
 html = (D / "app" / "cabecera.html").read_text(encoding="utf-8") + (D / "app" / "app_cuerpo.html").read_text(encoding="utf-8")
 libreria = (D / "vendor" / "xlsx.full.min.js").read_text(encoding="utf-8")
 motor = (D / "app" / "motor.js").read_text(encoding="utf-8")
-for nombre, codigo in (("libreria", libreria), ("motor", motor)):
+informe = (D / "app" / "informe.js").read_text(encoding="utf-8")
+for nombre, codigo in (("libreria", libreria), ("motor", motor), ("informe", informe)):
     assert "</script" not in codigo.lower(), f"{nombre} contiene </script>"
-html = html.replace("/*__XLSX__*/", libreria, 1).replace("/*__MOTOR__*/", motor, 1)
+html = html.replace("/*__XLSX__*/", libreria, 1).replace("/*__MOTOR__*/", motor, 1).replace("/*__INFORME__*/", informe, 1)
 salida = D.parent / "App_Control_Proyecto.html"
 salida.write_text(html, encoding="utf-8")
 print(f"OK -> {salida} ({salida.stat().st_size / 1024:.0f} KB)")

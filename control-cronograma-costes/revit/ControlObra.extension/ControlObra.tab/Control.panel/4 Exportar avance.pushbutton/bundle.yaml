@@ -1,0 +1,2 @@
+title: Exportar\navance
+tooltip: Genera Revit_Avance_<modelo>.csv con todos los elementos que tienen partida, en la carpeta del proyecto. En la app, Actualizar semana -> Avance en Revit -> adjunta ese archivo.

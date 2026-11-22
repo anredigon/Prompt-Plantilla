@@ -1,11 +1,18 @@
-/* Motor de cálculo de valor ganado (EVM) a partir del Excel de la plantilla.
- * calcular(wb, {corte}) -> { D, tablas, avisos }
- *   wb: libro leído con SheetJS (XLSX.read(buffer, {type: 'array'})).
- *   D: datos del informe; tablas: tablas para Power BI; avisos: problemas de datos encontrados.
+/* Motor de cálculo de valor ganado (EVM). Lo usan la app sin conexión (Excel) y la app de claude.ai.
+ *   leerLibro(wb)                -> datos   (lee el Excel de la plantilla con SheetJS)
+ *   calcularDatos(datos, {corte}) -> { D, tablas, avisos }
+ *   calcular(wb, {corte})        -> calcularDatos(leerLibro(wb), {corte})
+ * Estructura de "datos" (JSON puro, se guarda tal cual en la base de datos de la app):
+ *   { proyecto, inicio:'AAAA-MM-DD', n_sem, corte, cont_pct, umbral, umbral_act,
+ *     actividades:[{id,nombre,si,sf,pred}], partidas:[{cod,cap,desc,cant,bac,act,fuente,ud,cmed,perfil,sem_ent}],
+ *     revit:[{cod,q,estado,sem}], manual:{cod:[%acum por semana]}, suministros:[{sem,cod,q,alb}], horas:{cod:h/ud},
+ *     planillas:[{n,sem,cod,q,pu,obs,sem_pago}], extras:[{cod,desc,imp,estado,limite,motivo}],
+ *     contingencia:[{sem,concepto,imp,estado}], avisos:[] }
  * Reglas (validadas por dirección): ver README, sección "Reglas de cálculo".
  */
-function calcular(wb, opciones) {
-  opciones = opciones || {};
+function calcular(wb, opciones) { return calcularDatos(leerLibro(wb), opciones); }
+
+function leerLibro(wb) {
   const avisos = [];
   const HOJAS = ['Parametros', 'Cronograma', 'Oferta', 'Revit_Export', 'Suministros', 'Horas_Montaje',
                  'Avance_Manual', 'Planillas', 'Extras', 'Contingencia'];
@@ -48,12 +55,7 @@ function calcular(wb, opciones) {
   if (!inicio) throw new Error('Parametros!B4 (fecha de inicio) no es una fecha válida.');
   const n_sem = Math.round(num(valor('Parametros', 'B5')) || 0);
   if (n_sem < 1 || n_sem > 104) throw new Error('Parametros!B5 (nº de semanas) debe estar entre 1 y 104.');
-  let corte = Math.round(num(opciones.corte != null ? opciones.corte : valor('Parametros', 'B6')) || 1);
-  if (corte > 104) avisos.push(`Parametros: la semana de corte (${corte}) supera el máximo de 104; se usa 104.`);
-  corte = Math.min(Math.max(corte, 1), 104);
-  // Horizonte del informe: si la obra sigue abierta después del plan, se informa más allá de n_sem con PV plano
-  const horizonte = Math.max(n_sem, corte);
-  if (corte > n_sem) avisos.push(`La semana de corte (${corte}) es posterior al fin planificado (semana ${n_sem}): la obra va fuera de plazo.`);
+  const corte = Math.round(num(valor('Parametros', 'B6')) || 1);
   const cont_pct = num(valor('Parametros', 'B8')) || 0;
   const umbral = num(valor('Parametros', 'B9')) || 0.95;
   const umbral_act = num(valor('Parametros', 'B10')) || 0.9;
@@ -62,65 +64,36 @@ function calcular(wb, opciones) {
   const actividades = [];
   for (const r of filasDe('Cronograma')) {
     if (!txt(r[0])) continue;
-    if (actividades.some(a => a.id === txt(r[0]))) { avisos.push(`Cronograma: la actividad ${txt(r[0])} está repetida; se usa solo la primera.`); continue; }
-    const si = num(r[2]), sf = num(r[3]);
-    if (si == null || sf == null || sf < si) { avisos.push(`Cronograma: la actividad ${txt(r[0])} no tiene semanas de inicio/fin válidas; se ignora.`); continue; }
-    actividades.push({ id: txt(r[0]), nombre: txt(r[1]), si: Math.round(si), sf: Math.round(sf), pred: txt(r[7]) });
+    actividades.push({ id: txt(r[0]), nombre: txt(r[1]), si: num(r[2]), sf: num(r[3]), pred: txt(r[7]) });
   }
-  const actPorId = Object.fromEntries(actividades.map(a => [a.id, a]));
 
-  const FUENTES = ['ALBARAN', 'REVIT', 'MANUAL', 'DERIVADO'];
   const partidas = [];
   for (const r of filasDe('Oferta')) {
     const cod = txt(r[0]);
     if (!cod || num(r[4]) == null || !txt(r[6])) continue;
-    if (partidas.some(p => p.cod === cod)) { avisos.push(`Oferta: el código de partida ${cod} está repetido; se usa solo la primera fila. Corrige el código para que cuente.`); continue; }
-    const a = actPorId[txt(r[6])];
-    if (!a) { avisos.push(`Oferta: la partida ${cod} apunta a la actividad "${txt(r[6])}", que no está en el Cronograma; se ignora.`); continue; }
-    const fuente = txt(r[7]).toUpperCase();
-    if (!FUENTES.includes(fuente)) { avisos.push(`Oferta: la partida ${cod} tiene una fuente de avance no válida ("${txt(r[7])}"); se ignora.`); continue; }
-    const cmed = num(r[9]);
-    if ((fuente === 'REVIT' || fuente === 'ALBARAN') && !(cmed > 0)) { avisos.push(`Oferta: la partida ${cod} necesita CANT. MEDICIÓN mayor que 0; se ignora.`); continue; }
-    const perfil = txt(r[22]).toUpperCase() === 'ENTREGA' ? 'ENTREGA' : 'LINEAL';
-    const sem_ent = num(r[23]) != null ? Math.round(num(r[23])) : a.si;
-    partidas.push({ cod, cap: txt(r[1]), desc: txt(r[2]), bac: num(r[4]), act: a.id, fuente, ud: txt(r[8]),
-                    cmed: cmed || 1, perfil, sem_ent });
+    partidas.push({ cod, cap: txt(r[1]), desc: txt(r[2]), cant: num(r[3]), bac: num(r[4]), act: txt(r[6]),
+                    fuente: txt(r[7]).toUpperCase(), ud: txt(r[8]), cmed: num(r[9]),
+                    perfil: txt(r[22]).toUpperCase() === 'ENTREGA' ? 'ENTREGA' : 'LINEAL',
+                    sem_ent: num(r[23]) != null ? Math.round(num(r[23])) : null });
   }
-  if (!partidas.length) throw new Error('La hoja Oferta no tiene ninguna partida válida (código, importe y actividad).');
-  const codigos = new Set(partidas.map(p => p.cod));
 
   const revit = [];
-  const estadosRaros = new Set();
-  let sinSemana = 0;
   for (const r of filasDe('Revit_Export')) {
     const cod = txt(r[4]);
     if (!cod) continue;
     const sem = num(r[9]);
-    const est = txt(r[8]).toLowerCase();  // igual que SUMIFS de Excel: sin distinguir mayúsculas
-    if (est && est !== 'instalado' && est !== 'pendiente') estadosRaros.add(txt(r[8]));
-    revit.push({ cod, q: num(r[6]) || 0, estado: est === 'instalado' ? 'Instalado' : 'Pendiente', sem: sem == null ? null : Math.round(sem) });
-    if (est === 'instalado' && sem == null) sinSemana++;
+    revit.push({ cod, q: num(r[6]) || 0, estado: txt(r[8]), sem: sem == null ? null : Math.round(sem) });
   }
-  if (estadosRaros.size) avisos.push(`Revit_Export: CC_ESTADO con valores no reconocidos (cuentan como Pendiente): ${[...estadosRaros].slice(0, 5).join(', ')}.`);
-  if (sinSemana) avisos.push(`Revit_Export: ${sinSemana} elementos "Instalado" sin CC_SEMANA_INSTALADO no suman avance.`);
-  const huerfanos = new Set(revit.filter(e => !codigos.has(e.cod)).map(e => e.cod));
-  if (huerfanos.size) avisos.push(`Revit_Export: hay elementos con CC_COD_PARTIDA que no existe en la Oferta: ${[...huerfanos].slice(0, 8).join(', ')}.`);
 
   const manual = {};
-  const fueraRango = new Set();
   for (const r of filasDe('Avance_Manual')) {
     if (!txt(r[0])) continue;
-    manual[txt(r[0])] = r.slice(2, 2 + 104).map(v => {
-      const n = num(v);
-      if (n != null && (n < 0 || n > 1)) fueraRango.add(txt(r[0]));
-      return n == null ? null : Math.min(1, Math.max(0, n));
-    });
+    manual[txt(r[0])] = r.slice(2, 2 + 104).map(v => num(v));
   }
-  if (fueraRango.size) avisos.push(`Avance_Manual: hay % fuera de 0–100 % en ${[...fueraRango].join(', ')}; se limitan a 0–100 %.`);
   const suministros = [];
   for (const r of filasDe('Suministros')) {
     if (num(r[0]) == null || !txt(r[1])) continue;
-    suministros.push({ sem: Math.round(num(r[0])), cod: txt(r[1]), q: num(r[2]) || 0 });
+    suministros.push({ sem: Math.round(num(r[0])), cod: txt(r[1]), q: num(r[2]) || 0, alb: txt(r[3]) });
   }
   const horas = {};
   for (const r of filasDe('Horas_Montaje')) if (txt(r[0]) && num(r[2]) != null) horas[txt(r[0])] = num(r[2]);
@@ -130,10 +103,8 @@ function calcular(wb, opciones) {
     if (num(r[1]) == null || !txt(r[2]) || num(r[3]) == null || num(r[4]) == null) continue;
     const pago = num(r[7]);
     planillas.push({ n: txt(r[0]), sem: Math.round(num(r[1])), cod: txt(r[2]), q: num(r[3]), pu: num(r[4]),
-                     imp: r2(num(r[3]) * num(r[4])), obs: txt(r[6]), sem_pago: pago == null ? null : Math.round(pago) });
+                     obs: txt(r[6]), sem_pago: pago == null ? null : Math.round(pago) });
   }
-  const sinPartida = new Set(planillas.filter(x => !codigos.has(x.cod)).map(x => x.cod));
-  if (sinPartida.size) avisos.push(`Planillas: hay líneas con partidas que no existen en la Oferta (no cuentan en el coste): ${[...sinPartida].join(', ')}.`);
 
   const extras = [];
   for (const r of filasDe('Extras')) {
@@ -147,6 +118,103 @@ function calcular(wb, opciones) {
     if (num(r[0]) == null || num(r[2]) == null) continue;
     contingencia.push({ sem: Math.round(num(r[0])), concepto: txt(r[1]), imp: num(r[2]), estado: txt(r[3]) });
   }
+  if (numerosTexto) avisos.push(`Hay ${numerosTexto} números guardados como texto en el Excel; se han interpretado (coma = decimal). Revísalos o conviértelos a número.`);
+  return { proyecto, inicio: iso(inicio), n_sem, corte, cont_pct, umbral, umbral_act, actividades, partidas, revit,
+           manual, suministros, horas, planillas, extras, contingencia, avisos };
+}
+
+function calcularDatos(datos, opciones) {
+  opciones = opciones || {};
+  const avisos = [...(datos.avisos || [])];
+  const r2 = x => Math.round(x * 100) / 100;
+  const div = (a, b) => (b ? a / b : null);
+  const MS_DIA = 864e5;
+  const iso = d => d.toISOString().slice(0, 10);
+  const masDias = (d, n) => new Date(d.getTime() + n * MS_DIA);
+  const esNum = v => typeof v === 'number' && isFinite(v);
+
+  // ---------------------------------------------------------------- parámetros
+  const proyecto = String(datos.proyecto || '').trim() || 'Proyecto sin nombre';
+  const inicio = /^\d{4}-\d{2}-\d{2}$/.test(datos.inicio || '') ? new Date(datos.inicio + 'T00:00:00Z') : null;
+  if (!inicio || isNaN(inicio)) throw new Error('La fecha de inicio del proyecto no es válida.');
+  const n_sem = Math.round(datos.n_sem || 0);
+  if (n_sem < 1 || n_sem > 104) throw new Error('El nº de semanas del cronograma debe estar entre 1 y 104.');
+  let corte = Math.round(esNum(opciones.corte) ? opciones.corte : (datos.corte || 1));
+  if (corte > 104) avisos.push(`La semana de corte (${corte}) supera el máximo de 104; se usa 104.`);
+  corte = Math.min(Math.max(corte, 1), 104);
+  // Horizonte del informe: si la obra sigue abierta después del plan, se informa más allá de n_sem con PV plano
+  const horizonte = Math.max(n_sem, corte);
+  if (corte > n_sem) avisos.push(`La semana de corte (${corte}) es posterior al fin planificado (semana ${n_sem}): la obra va fuera de plazo.`);
+  const cont_pct = esNum(datos.cont_pct) ? datos.cont_pct : 0;
+  const umbral = esNum(datos.umbral) && datos.umbral > 0 ? datos.umbral : 0.95;
+  const umbral_act = esNum(datos.umbral_act) && datos.umbral_act > 0 ? datos.umbral_act : 0.9;
+
+  // ---------------------------------------------------------------- validación
+  const actividades = [];
+  for (const a of datos.actividades || []) {
+    const id = String(a.id || '').trim();
+    if (!id) continue;
+    if (actividades.some(x => x.id === id)) { avisos.push(`Cronograma: la actividad ${id} está repetida; se usa solo la primera.`); continue; }
+    if (!esNum(a.si) || !esNum(a.sf) || a.sf < a.si) { avisos.push(`Cronograma: la actividad ${id} no tiene semanas de inicio/fin válidas; se ignora.`); continue; }
+    actividades.push({ id, nombre: String(a.nombre || ''), si: Math.round(a.si), sf: Math.round(a.sf), pred: String(a.pred || '') });
+  }
+  const actPorId = Object.fromEntries(actividades.map(a => [a.id, a]));
+  const FUENTES = ['ALBARAN', 'REVIT', 'MANUAL', 'DERIVADO'];
+  const partidas = [];
+  for (const p of datos.partidas || []) {
+    const cod = String(p.cod || '').trim();
+    if (!cod || !esNum(p.bac)) continue;
+    if (partidas.some(x => x.cod === cod)) { avisos.push(`Oferta: el código de partida ${cod} está repetido; se usa solo la primera fila. Corrige el código para que cuente.`); continue; }
+    const a = actPorId[String(p.act || '').trim()];
+    if (!a) { avisos.push(`Oferta: la partida ${cod} apunta a la actividad "${p.act || ''}", que no está en el Cronograma; se ignora.`); continue; }
+    const fuente = String(p.fuente || '').toUpperCase();
+    if (!FUENTES.includes(fuente)) { avisos.push(`Oferta: la partida ${cod} tiene una fuente de avance no válida ("${p.fuente || ''}"); se ignora.`); continue; }
+    if ((fuente === 'REVIT' || fuente === 'ALBARAN') && !(p.cmed > 0)) { avisos.push(`Oferta: la partida ${cod} necesita una cantidad de medición mayor que 0; se ignora.`); continue; }
+    partidas.push({ cod, cap: String(p.cap || ''), desc: String(p.desc || ''), bac: p.bac, act: a.id, fuente, ud: String(p.ud || ''),
+                    cmed: p.cmed > 0 ? p.cmed : 1, perfil: p.perfil === 'ENTREGA' ? 'ENTREGA' : 'LINEAL',
+                    sem_ent: esNum(p.sem_ent) ? Math.round(p.sem_ent) : a.si });
+  }
+  if (!partidas.length) throw new Error('El presupuesto no tiene ninguna partida válida (código, importe y actividad).');
+  const codigos = new Set(partidas.map(p => p.cod));
+
+  const revit = [];
+  const estadosRaros = new Set();
+  let sinSemana = 0;
+  for (const e of datos.revit || []) {
+    const cod = String(e.cod || '').trim();
+    if (!cod) continue;
+    const est = String(e.estado || '').trim().toLowerCase();  // igual que SUMIFS de Excel: sin distinguir mayúsculas
+    if (est && est !== 'instalado' && est !== 'pendiente') estadosRaros.add(e.estado);
+    const sem = esNum(e.sem) ? Math.round(e.sem) : null;
+    if (est === 'instalado' && sem == null) sinSemana++;
+    revit.push({ cod, q: esNum(e.q) ? e.q : 0, estado: est === 'instalado' ? 'Instalado' : 'Pendiente', sem });
+  }
+  if (estadosRaros.size) avisos.push(`Revit: CC_ESTADO con valores no reconocidos (cuentan como Pendiente): ${[...estadosRaros].slice(0, 5).join(', ')}.`);
+  if (sinSemana) avisos.push(`Revit: ${sinSemana} elementos "Instalado" sin CC_SEMANA_INSTALADO no suman avance.`);
+  const huerfanos = new Set(revit.filter(e => !codigos.has(e.cod)).map(e => e.cod));
+  if (huerfanos.size) avisos.push(`Revit: hay elementos con CC_COD_PARTIDA que no existe en el presupuesto: ${[...huerfanos].slice(0, 8).join(', ')}.`);
+
+  const manual = {};
+  const fueraRango = new Set();
+  for (const [cod, serieM] of Object.entries(datos.manual || {})) {
+    manual[cod] = (serieM || []).map(v => {
+      if (!esNum(v)) return null;
+      if (v < 0 || v > 1) fueraRango.add(cod);
+      return Math.min(1, Math.max(0, v));
+    });
+  }
+  if (fueraRango.size) avisos.push(`Avance manual: hay % fuera de 0–100 % en ${[...fueraRango].join(', ')}; se limitan a 0–100 %.`);
+  const suministros = (datos.suministros || []).filter(x => esNum(x.sem) && x.cod).map(x => ({ sem: Math.round(x.sem), cod: String(x.cod), q: esNum(x.q) ? x.q : 0 }));
+  const horas = {};
+  for (const [cod, h] of Object.entries(datos.horas || {})) if (esNum(h)) horas[cod] = h;
+  const planillas = (datos.planillas || []).filter(x => esNum(x.sem) && x.cod && esNum(x.q) && esNum(x.pu)).map(x => ({
+    n: String(x.n || ''), sem: Math.round(x.sem), cod: String(x.cod), q: x.q, pu: x.pu, imp: r2(x.q * x.pu), obs: String(x.obs || ''),
+    sem_pago: esNum(x.sem_pago) ? Math.round(x.sem_pago) : null }));
+  const sinPartida = new Set(planillas.filter(x => !codigos.has(x.cod)).map(x => x.cod));
+  if (sinPartida.size) avisos.push(`Planillas: hay líneas con partidas que no existen en el presupuesto (no cuentan en el coste): ${[...sinPartida].join(', ')}.`);
+  const extras = (datos.extras || []).filter(e => e.cod && esNum(e.imp)).map(e => ({ cod: String(e.cod), desc: String(e.desc || ''), imp: e.imp,
+    estado: e.estado || 'Sin decidir', limite: esNum(e.limite) ? Math.round(e.limite) : null, motivo: String(e.motivo || '') }));
+  const contingencia = (datos.contingencia || []).filter(c => esNum(c.sem) && esNum(c.imp)).map(c => ({ sem: Math.round(c.sem), concepto: String(c.concepto || ''), imp: c.imp, estado: String(c.estado || '') }));
 
   // ---------------------------------------------------------------- cálculo semanal
   const SEMANAS = Array.from({ length: horizonte }, (_, i) => i + 1);
@@ -160,7 +228,7 @@ function calcular(wb, opciones) {
   const cantMedida = (p, w) => (p.fuente === 'ALBARAN' ? cantEntregada(p, w) : cantRevit(p, w));
   const horasTot = revit.reduce((s, e) => s + (horas[e.cod] || 0) * e.q, 0);
   const fracHoras = w => (horasTot ? revit.reduce((s, e) => s + (e.estado === 'Instalado' && e.sem != null && e.sem <= w ? (horas[e.cod] || 0) * e.q : 0), 0) / horasTot : 0);
-  if (partidas.some(p => p.fuente === 'DERIVADO') && !horasTot) avisos.push('Hay partidas DERIVADO (montaje) pero la hoja Horas_Montaje no tiene horas para elementos del modelo: su avance será 0.');
+  if (partidas.some(p => p.fuente === 'DERIVADO') && !horasTot) avisos.push('Hay partidas DERIVADO (montaje) pero no hay horas de montaje para elementos del modelo de Revit (o aún no se ha importado Revit): su avance será 0 hasta entonces.');
   const pctAvance = (p, w) => {
     if (p.fuente === 'REVIT' || p.fuente === 'ALBARAN') return Math.min(1, cantMedida(p, w) / p.cmed);
     if (p.fuente === 'MANUAL') { const s = manual[p.cod] || []; return s[w - 1] || 0; }
@@ -218,7 +286,6 @@ function calcular(wb, opciones) {
   const PAGADO = planillas.filter(x => codigos.has(x.cod) && x.sem <= corte && x.sem_pago != null && x.sem_pago <= corte).reduce((s, x) => s + x.imp, 0);
   const pagoAntes = planillas.filter(x => x.sem_pago != null && x.sem_pago < x.sem);
   if (pagoAntes.length) avisos.push(`Planillas: ${pagoAntes.length} líneas tienen semana de pago anterior a su semana de certificación (${[...new Set(pagoAntes.map(x => x.n))].slice(0, 5).join(', ')}).`);
-  if (numerosTexto) avisos.push(`Hay ${numerosTexto} números guardados como texto en el Excel; se han interpretado (coma = decimal). Revísalos o conviértelos a número.`);
 
   // ---------------------------------------------------------------- por actividad
   const ORDEN = { critical: 0, serious: 1, warning: 2, good: 3 };

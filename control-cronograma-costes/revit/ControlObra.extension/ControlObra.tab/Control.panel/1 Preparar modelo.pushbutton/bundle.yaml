@@ -1,0 +1,2 @@
+title: Preparar\nmodelo
+tooltip: Crea en el modelo los parámetros CC_* (partida, actividad, estado, semana, zona) en las categorías que elijas, y la fecha de inicio de obra. Se hace una vez por modelo; repetirlo añade categorías sin borrar datos.
