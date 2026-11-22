@@ -1,0 +1,48 @@
+﻿n_planilla,semana,cod_partida,cant_certificada,precio_aplicado,importe,observacion
+PL-04,4,P24,65.31,29.55,1929.91,Medición del instalador +8 % sobre metros instalados en modelo
+PL-04,4,P25,0.0089,247117.45,2199.35,Montaje: % declarado por instalador
+PL-05,5,P01,1.0,80597.48,80597.48,
+PL-05,5,P24,93.38,29.55,2759.38,Medición del instalador +8 % sobre metros instalados en modelo
+PL-05,5,P25,0.0578,247117.45,14283.39,Montaje: % declarado por instalador
+PL-06,6,P01,1.0,80597.48,80597.48,
+PL-06,6,P02,1.0,65485.45,65485.45,
+PL-06,6,P03,1.0,28931.41,28931.41,
+PL-06,6,P20,2.0,226.68,453.36,
+PL-06,6,P24,131.14,29.55,3875.19,Medición del instalador +8 % sobre metros instalados en modelo
+PL-06,6,P25,0.04,247117.45,9884.7,Montaje: % declarado por instalador
+PL-07,7,P04,1.0,20712.98,20712.98,
+PL-07,7,P06,1.0,12973.42,12973.42,
+PL-07,7,P07,2.0,15146.0,30292.0,
+PL-07,7,P20,4.0,226.68,906.72,
+PL-07,7,P24,138.18,29.55,4083.22,Medición del instalador +8 % sobre metros instalados en modelo
+PL-07,7,P25,0.0533,247117.45,13171.36,Montaje: % declarado por instalador
+PL-08,8,P02,1.0,65485.45,65485.45,
+PL-08,8,P08,1.0,17687.33,17687.33,
+PL-08,8,P19,2.0,188.9,377.8,
+PL-08,8,P20,4.0,226.68,906.72,
+PL-08,8,P24,105.25,29.55,3110.14,Medición del instalador +8 % sobre metros instalados en modelo
+PL-08,8,P25,0.0489,247117.45,12084.04,Montaje: % declarado por instalador
+PL-09,9,P05,1.0,61369.09,61369.09,
+PL-09,9,P08,1.0,17687.33,17687.33,
+PL-09,9,P11,2.0,2110.8,4221.6,
+PL-09,9,P19,4.0,188.9,755.6,
+PL-09,9,P20,4.0,226.68,906.72,
+PL-09,9,P24,132.76,29.55,3923.06,Medición del instalador +8 % sobre metros instalados en modelo
+PL-09,9,P17,0.5,28328.7,14164.35,ACOPIO 50 %: equipo no instalado
+PL-09,9,P25,0.0711,247117.45,17570.05,Montaje: % declarado por instalador
+PL-10,10,P09,2.0,12191.59,24383.18,
+PL-10,10,P10,1.0,10806.32,10806.32,
+PL-10,10,P11,3.0,2110.8,6332.4,
+PL-10,10,P19,5.0,188.9,944.5,
+PL-10,10,P20,5.0,226.68,1133.4,
+PL-10,10,P24,95.0,29.55,2807.25,Medición del instalador +8 % sobre metros instalados en modelo
+PL-10,10,P25,0.0844,247117.45,20856.71,Montaje: % declarado por instalador
+PL-11,11,P10,1.0,10806.32,10806.32,
+PL-11,11,P11,3.0,2110.8,6332.4,
+PL-11,11,P12,1.0,3987.27,3987.27,Precio contradictorio +6 % (pendiente de aprobar)
+PL-11,11,P14,1.0,3297.71,3297.71,
+PL-11,11,P19,5.0,188.9,944.5,
+PL-11,11,P20,5.0,226.68,1133.4,
+PL-11,11,P24,138.7,29.55,4098.59,Medición del instalador +8 % sobre metros instalados en modelo
+PL-11,11,A01,60.47,50.71,3066.43,
+PL-11,11,P25,0.0889,247117.45,21968.74,Montaje: % declarado por instalador

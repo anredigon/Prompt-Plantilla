@@ -1,0 +1,5 @@
+﻿cod,descripcion,importe,estado,semana_limite,motivo
+X01,Cableado eléctrico receptores frío,134200.0,Sin decidir,13,Sin cableado de receptores no hay conexionado ni puesta en marcha. No es opcional: es alcance no contratado.
+X02,Telecontrol de la instalación en factoría,21594.0,Sin decidir,17,Debe integrarse antes de cerrar el cuadro.
+X03,Telecontrol vía GSM (incremento sobre X02),2440.0,Sin decidir,17,Depende de X02.
+X04,Avisador telefónico de alarmas,1830.0,Sin decidir,20,Necesario antes de cargar amoniaco (seguridad).
