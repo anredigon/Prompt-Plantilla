@@ -93,8 +93,6 @@ python scripts/crear_plantilla.py              # plantilla en blanco
 python scripts/crear_plantilla.py --ejemplo    # ejemplo relleno
 python scripts/construir_app.py                # ensambla App_Control_Proyecto.html
 node scripts/probar_app.js                     # prueba la app con el ejemplo (requiere Playwright)
-```
 python scripts/construir_claude_app.py         # prepara claude_app/publicar para publicar en claude.ai
 ```
 Las apps usan SheetJS (`scripts/vendor/xlsx.full.min.js`) y pdf.js (`scripts/vendor/pdfjs/`), ambas con licencia Apache-2.0, para leer Excel y PDF en el navegador. Sus caracteres de control se guardan escapados (`\uXXXX`) para que el servidor de artefactos acepte los archivos como texto.
-```
