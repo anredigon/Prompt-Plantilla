@@ -12,6 +12,7 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.comments import Comment
+from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -191,7 +192,8 @@ filas = [
 for i, (a, b) in enumerate(filas, 3):
     put(ws, f"A{i}", a, f_bold)
     put(ws, f"B{i}", b).alignment = Alignment(wrap_text=True, vertical="top")
-ws["A5"].font = f_input
+ws["A4"].font = f_input
+ws["A6"].font = f_link
 ws["A7"].fill = fill_key
 
 # ---- Parametros
@@ -239,6 +241,9 @@ for i, (aid, nom, si, sf, pred) in enumerate(ACTIVIDADES, 2):
     put(wc, f"M{i}", f'=IF(J{i}=0,"-",K{i}/J{i})', fmt=RATIO)
     put(wc, f"N{i}", f'=IF(L{i}=0,"-",K{i}/L{i})', fmt=RATIO)
 nA = len(ACTIVIDADES) + 1
+wc.conditional_formatting.add(
+    f"M2:N{nA}", FormulaRule(formula=["AND(ISNUMBER(M2),M2<Parametros!$B$9)"],
+                             fill=PatternFill("solid", fgColor="F4CCCC"), font=Font(name=F, color="9C0006")))
 
 # ---- Oferta (partidas)
 wo = wb.create_sheet("Oferta", 1)
@@ -472,7 +477,8 @@ kpi = [
     ("CV · Variación de coste (€)", "=B7-B8", EUR0, "EV − AC. Negativo = se ha pagado más de lo ganado."),
     ("SPI", '=IF(B6=0,"-",B7/B6)', RATIO, "< 1 = retraso."),
     ("CPI", '=IF(B8=0,"-",B7/B8)', RATIO, "< 1 = sobrecoste o pago adelantado."),
-    ("EAC · Estimación a la conclusión (BAC/CPI)", '=IF(ISNUMBER(B12),B5/B12,B5)', EUR0, "Hipótesis: el rendimiento de coste actual se mantiene."),
+    ("EAC · Estimación a la conclusión (BAC/CPI)", '=IF(AND(ISNUMBER(B12),B12<>0),B5/B12,B8+B5-B7)', EUR0,
+     "Hipótesis: el rendimiento de coste actual se mantiene. Sin CPI medible: AC + (BAC − EV)."),
     ("VAC · Variación a la conclusión", "=B5-B13", EUR0, "BAC − EAC."),
     ("TCPI · Eficiencia necesaria para cumplir BAC", '=IF(B5=B8,"-",(B5-B7)/(B5-B8))', RATIO, "> 1 = hay que mejorar."),
     ("% avance físico (EV/BAC)", "=B7/B5", PCT, ""),

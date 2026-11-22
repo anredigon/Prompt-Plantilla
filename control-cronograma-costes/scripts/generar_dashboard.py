@@ -45,7 +45,8 @@ act_by_id = {a["id"]: a for a in actividades}
 
 partidas = []
 for r in filas(wb["Oferta"]):
-    if not str(r[0]).startswith(("P", "E", "A")) or r[4] is None or not isinstance(r[4], (int, float)):
+    # Cualquier partida con código, importe numérico y actividad (la fila TOTAL no tiene código)
+    if not isinstance(r[4], (int, float)) or not r[6]:
         continue
     partidas.append(dict(cod=r[0], cap=r[1], desc=r[2], cant=r[3], bac=float(r[4]), act=r[6],
                          fuente=r[7], ud=r[8], cmed=float(r[9])))
@@ -125,21 +126,26 @@ def tot(campo, w, cods=None):
 
 BAC = sum(p["bac"] for p in partidas)
 PV, EV, AC = tot("pv", corte), tot("ev", corte), tot("ac", corte)
-SPI, CPI = EV / PV, EV / AC
-EAC = BAC / CPI
+def div(a, b):
+    return a / b if b else None
+
+
+SPI, CPI = div(EV, PV), div(EV, AC)
+# Sin rendimiento de coste medible (CPI nulo o 0): EAC = AC + trabajo pendiente a precio de oferta
+EAC = BAC / CPI if CPI else AC + (BAC - EV)
 curva = [dict(sem=w, pv=round(tot("pv", w), 2),
               ev=round(tot("ev", w), 2) if w <= corte else None,
               ac=round(tot("ac", w), 2) if w <= corte else None) for w in SEMANAS]
 
 # Earned schedule: momento en que lo ganado hoy debía estar ganado
 pvs = [0.0] + [c["pv"] for c in curva]
-ES = 0.0
+ES = float(len(pvs) - 1)  # si lo ganado supera todo el PV, se ha ganado el plan completo
 for t in range(1, len(pvs)):
     if pvs[t] >= EV:
         ES = (t - 1) + (EV - pvs[t - 1]) / (pvs[t] - pvs[t - 1]) if pvs[t] > pvs[t - 1] else t - 1
         break
-SPIt = ES / corte
-dur_prev = n_sem / SPIt
+SPIt = div(ES, corte) if PV > 0 else None  # sin nada planificado aún no hay índice de plazo
+dur_prev = div(n_sem, SPIt)
 retraso_sem = corte - ES
 
 
@@ -148,7 +154,7 @@ def fecha_fin_sem(w):
 
 
 fin_plan = fecha_fin_sem(n_sem)
-fin_prev = inicio + timedelta(days=round(7 * dur_prev) - 3)
+fin_prev = inicio + timedelta(days=round(7 * dur_prev) - 3) if dur_prev else None
 
 ext_pend = sum(e["imp"] for e in extras if e["estado"] == "Sin decidir")
 cont_ini = cont_pct * BAC
@@ -174,7 +180,7 @@ for a in actividades:
     pv, ev, ac = tot("pv", corte, cods), tot("ev", corte, cods), tot("ac", corte, cods)
     spi = ev / pv if pv else None
     cpi = ev / ac if ac else None
-    if pv == 0 and ev == 0:
+    if pv == 0 and ev == 0 and ac == 0:
         estado = "sin_iniciar"
     else:
         estado = min(nivel(spi), nivel(cpi), key=lambda k: ORDEN[k])
@@ -229,20 +235,22 @@ alertas.sort(key=lambda x: ORDEN[x["nivel"]])
 datos = dict(
     proyecto=proyecto, corte=corte, n_sem=n_sem,
     fecha_corte=(inicio + timedelta(days=7 * corte - 1)).isoformat(),
-    inicio=inicio.isoformat(), fin_plan=fin_plan.isoformat(), fin_prev=fin_prev.isoformat(),
+    inicio=inicio.isoformat(), fin_plan=fin_plan.isoformat(), fin_prev=fin_prev.isoformat() if fin_prev else None,
     BAC=BAC, PV=PV, EV=EV, AC=AC, SPI=SPI, CPI=CPI, EAC=EAC, VAC=BAC - EAC,
-    TCPI=(BAC - EV) / (BAC - AC), ES=ES, SPIt=SPIt, retraso=retraso_sem, dur_prev=dur_prev,
+    TCPI=div(BAC - EV, BAC - AC), ES=ES, SPIt=SPIt, retraso=retraso_sem, dur_prev=dur_prev,
     ext_pend=ext_pend, cont_ini=cont_ini, cont_cons=cont_cons, cont_prop=cont_prop, cont_disp=cont_disp,
     curva=curva, actividades=filas_act, alertas=alertas, extras=extras, contingencia=contingencia,
     umbral=umbral, generado=date.today().isoformat(),
 )
 plantilla = (Path(__file__).resolve().parent / "plantilla_dashboard.html").read_text(encoding="utf-8")
-html = plantilla.replace("/*__DATOS__*/null", json.dumps(datos, ensure_ascii=False, default=str))
+js = json.dumps(datos, ensure_ascii=False, default=str).replace("</", "<\\/")  # evita cerrar <script>
+html = plantilla.replace("/*__DATOS__*/null", js)
+OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "dashboard_directorio.html").write_text(html, encoding="utf-8")
 
 # ------------------------------------------------------------------ salida Power BI
 pb = OUT / "powerbi"
-pb.mkdir(exist_ok=True)
+pb.mkdir(parents=True, exist_ok=True)
 
 
 def escribir(nombre, cab, rows):
@@ -290,6 +298,6 @@ escribir("parametros.csv", ["semana_corte", "n_semanas", "fecha_inicio", "contin
          [[corte, n_sem, inicio.isoformat(), cont_pct, umbral]])
 
 print(json.dumps(dict(BAC=round(BAC, 2), PV=round(PV, 2), EV=round(EV, 2), AC=round(AC, 2),
-                      SPI=round(SPI, 4), CPI=round(CPI, 4), EAC=round(EAC, 2), ES=round(ES, 2),
-                      retraso_sem=round(retraso_sem, 2), fin_prev=fin_prev.isoformat(),
+                      SPI=SPI and round(SPI, 4), CPI=CPI and round(CPI, 4), EAC=round(EAC, 2), ES=round(ES, 2),
+                      retraso_sem=round(retraso_sem, 2), fin_prev=fin_prev and fin_prev.isoformat(),
                       alertas=len(alertas)), ensure_ascii=False, indent=1))
